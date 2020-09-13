@@ -15,8 +15,8 @@
 static STATE currentState;
 static STATE newState;
 
-static const char* ssid = "Telenor5390nes";
-static const char* pass = "Undervisningsfilmene1";
+static const char* ssid = "";
+static const char* pass = "";
 static const char* mqttServer = "10.0.0.4";
 static const int   mqttPort   = 1883;
 
