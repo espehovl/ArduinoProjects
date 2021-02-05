@@ -101,7 +101,7 @@ static const uint8_t  initBrightness      = 100;
 static const uint8_t  maxBrightness       = 200;
 static const uint8_t  maxNightBrightness  = 100;
 static uint16_t       ambientBrightness;
-static const uint16_t ambientBrtThreshold = 5; // TODO: Adjust this appropriately! 
+static const uint16_t ambientBrtThreshold = 5; // Adjust this appropriately to your preference! 
 static uint8_t        currentState;
 static uint8_t        prevState;
 static uint8_t        mode;
