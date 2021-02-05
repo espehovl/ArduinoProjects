@@ -23,6 +23,11 @@ typedef enum {
   STATE_ERROR,
 } STATE;
 
+typedef struct {
+  char* sym;
+  DM_Color color;
+} COLOR_MAP;
+
 /* Variables */
 Adafruit_NeoPixel matrix( DM_NUM_PX, DM_SIG_PIN, NEO_GRB + NEO_KHZ800 ); 
 
@@ -33,6 +38,7 @@ void DM_Clear( void );
 void DM_SetPx( int x, int y, DM_Color col );
 void DM_FillScreen( DM_Color col );
 void DM_DrawBitMap( const unsigned char arr[], DM_Color fg, DM_Color bg );
+void DM_DrawColorImage( char* arr[] );
 
 void TiminiLogo( DM_Color fg, DM_Color bg = COLOR_BLACK );
 
