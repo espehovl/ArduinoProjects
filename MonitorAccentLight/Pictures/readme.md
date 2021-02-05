@@ -1,6 +1,6 @@
 # Pictures
 
-Here are some pictures of my particular setup of the project
+Here are some pictures of my particular setup of the project. Pardon the dust.
 
 ![Alt text](IMG_0422.JPG?raw=true "1")
 ![Alt text](IMG_0423.JPG?raw=true "2")
