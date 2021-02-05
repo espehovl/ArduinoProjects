@@ -47,7 +47,7 @@
 /* 
 Do you want the system to run according to the time of the RTC
 in order to toggle between high/low brightness of the LED strip,
-leave this at 1. Light sensing will still be enabled.
+leave this at 1. Light sensing will be disabled.
 
 If you want the system to operate only according to the ambient
 light, set this to 0. This will override any time-control.
@@ -101,7 +101,7 @@ static const uint8_t  initBrightness      = 100;
 static const uint8_t  maxBrightness       = 200;
 static const uint8_t  maxNightBrightness  = 100;
 static uint16_t       ambientBrightness;
-static const uint16_t ambientBrtThreshold = 5; // Adjust this appropriately to your preference! 
+static const uint16_t ambientBrtThreshold = 5; // Adjust this appropriately to your preference!
 static uint8_t        currentState;
 static uint8_t        prevState;
 static uint8_t        mode;
@@ -195,6 +195,12 @@ void setup() {
   currentState = STATE_BOOT;
   prevState = currentState;
   mode = MODE_LIGHT;
+
+  #if OPERATION_MODE == 0
+    Serial.println("Booted into light sensing mode");
+  #elif OPERATION_MODE == 1
+    Serial.println("Booted into time controlled mode");
+  #endif
 }
 
 void loop() {
@@ -223,38 +229,41 @@ void loop() {
       /* Flag an update of the strip to the new brightness */
       updateFlag = true;
     }
-    
+
+    if ( second() % READ_INTERVAL == 0 ) {
+      readBrightness = true;
+    }
+  
+    if (readBrightness) {
+      /* Get and print the ambient brightness in the room */
+      Serial.print("Reading ambient brightness: ");
+      getAmbientBrightness(ambientBrightness);
+      Serial.println(ambientBrightness);
+
+      if (mode == MODE_LIGHT && ambientBrightness < ambientBrtThreshold ) {
+        enterDarkMode();
+      }
+      else if (mode == MODE_DARK && ambientBrightness > ambientBrtThreshold ) {
+        leaveDarkMode();
+      }
+    }
+
   #endif
 
-  if ( second() % READ_INTERVAL == 0 ) {
-    readBrightness = true;
-  }
-  
-  if (readBrightness) {
-    /* Get and print the ambient brightness in the room */
-    Serial.print("Reading ambient brightness: ");
-    getAmbientBrightness(ambientBrightness);
-    Serial.println(ambientBrightness);
-
-    if (mode == MODE_LIGHT && ambientBrightness < ambientBrtThreshold ) {
-      enterDarkMode();
-    }
-    else if (mode == MODE_DARK && ambientBrightness > ambientBrtThreshold ) {
-      leaveDarkMode();
-    }
-  } 
-  
   if (updateFlag) {
     /* Update the strip */
     updateStrip();
     updateFlag = false;
   }
-  
-  if (readBrightness) {
-    /* Delay for a second, to avoid multiple rounds of reading the ambient light */
-    readBrightness = false;
-    delay(1000);
-  }
+
+  #if OPERATION_MODE == 0
+    if (readBrightness) {
+      /* Delay for a second, to avoid multiple rounds of reading the ambient light */
+      readBrightness = false;
+      delay(1000);
+    }
+  #endif
+
 }
 
 /*************************************************************/
