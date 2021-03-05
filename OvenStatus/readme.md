@@ -10,6 +10,7 @@ Furthermore, a 1602 LCD display continuously displays the oven temperature, room
 ## Schematic
 Note that the temperature sensor (DS18B20) has been connected to an extension wire; the breadboard is not stuck to the oven!
 
+_Resistors in the schematic are of correct values (330 Ohm current-limiting resistor in series with LED, and 4.7 kOhm pull-up resistor on the data pin of the DS18B20)._
 ![Schematic](OvenStatus_bb.png?raw=true "Schematic")
 
 
