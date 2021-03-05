@@ -6,4 +6,7 @@ The project will consist of a car which is controlled via hand gestures. The ope
 ## Features to come
 
 - Hand gesture controls for forward, backward and turning motion
+- Variable speed control by adjusting the movements of the hand
 - Two-way communication between car and controller, enables feedback from the car to an indicator on the glove/controller unit
+- System for avoiding crashing of the car (ultrasonic range sensor)
+- +++
