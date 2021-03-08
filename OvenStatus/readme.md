@@ -14,3 +14,7 @@ _Resistors in the schematic are of correct values (330 Ohm current-limiting resi
 ![Schematic](OvenStatus_bb.png?raw=true "Schematic")
 
 
+![img](Pictures/IMG_0463.JPG?raw=true "Display")
+
+![img](Pictures/IMG_0464.JPG?raw=true "Display")
+
