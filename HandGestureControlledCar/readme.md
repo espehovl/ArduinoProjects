@@ -1,7 +1,7 @@
 # Hand Gesture Controlled Remote Controlled Car
 
 This is my semester project for the course TFY4190 Instrumentation at NTNU, spring 2021.
-The project will consist of a car which is controlled via hand gestures. The operator will use a glove with a microcrontroller, accelerometer and RF transceiver, and the car will consist of motors and related drivers, as well as a microcontroller and an RF transceiver.
+The project will consist of a car which is controlled via hand gestures. The operator will use a glove with a microcontroller, accelerometer and RF transceiver, and the car will consist of motors and related drivers, as well as a microcontroller and an RF transceiver.
 
 ## Features to come
 
