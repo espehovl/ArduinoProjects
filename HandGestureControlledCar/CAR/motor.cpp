@@ -11,7 +11,7 @@ void drive(Direction dir, int speedLeftMotor, int speedRightMotor)
     analogWrite(CTRL_A, speedRightMotor);
     analogWrite(CTRL_B, speedLeftMotor);
 
-    //TODO: Vurder å legge inn en delay (noen ms) her, men det må man se hvordan det blir med den faktiske kontrollen og kommunikasjonen
+    return;
 }
 
 
@@ -23,45 +23,49 @@ void setMotors(Direction dir)
     /* data will take the form of a 8 bit number, 
      * with the following format:
      *  | MSB |     |     |     |     |     |     | LSB |
-     *  |     Not used          | IN4 | IN3 | IN2 | IN1 |
-     *  |                       |   LEFT    |   RIGHT   |
+     *  |   Driving lights      | IN4 | IN3 | IN2 | IN1 |
+     *  | RR  | RL  | FL  | FR  |   LEFT    |   RIGHT   |
      */
 
     switch (dir)
     {
     case Direction::forward:
         // Both motors move forward
-        data = 0b0101;
+        data = 0b00110101;
         break;
     
     case Direction::backward:
         // Both motors move backward
-        data = 0b1010;
+        data = 0b11001010;
         break;
     
     case Direction::left:
         // Right motor moves forward
-        data = 0b0001;
+        data = 0b00100001;
         break;
 
     case Direction::right:
         // Left motor moves forward
-        data = 0b0100;
+        data = 0b00010100;
         break;
     
     case Direction::sharp_left:
         // Left motor backward, right forward
-        data = 0b1001;
+        data = 0b01101001;
         break;
 
     case Direction::sharp_right:
         // Right motor backward, left forward
-        data = 0b0110;
+        data = 0b10010110;
         break;
 
+    case Direction::stop:
+        // Stop
+        data = 0b11110000;
+        break;
     default:
         // Do nothing
-        data = 0b0000;
+        data = 0b00000000;
         break;
     }
 

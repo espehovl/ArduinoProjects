@@ -2,7 +2,7 @@
 #define _MOTOR_H_
 
 
-// Enum of the different motor combinations
+// Enum for the different motor combinations
 enum class Direction
 {
     forward,
@@ -10,7 +10,8 @@ enum class Direction
     left,
     right,
     sharp_left,
-    sharp_right
+    sharp_right,
+    stop
 };
 
 void setMotors(Direction dir);
