@@ -1,18 +1,30 @@
+//#include <ESP8266WiFi.h>
+//#include <WiFiEsp.h>
+#include <SoftwareSerial.h>
+#include <WString.h>
 
 #include "Wire.h"
 
 #include "TFY4190_CAR.h"
 #include "motor.h"
 
+#define WIFI ( 1 )
+
 #define I2C_SLAVE ( 0x14 )
 
 Direction dir;
 int speedLeftWheel;
 int speedRightWheel;
-int speed;
+
+int  speed;
 bool forwards;
-int turn;
+int  turn;
 bool rightTurn;
+
+
+/* Set up a software serial port for reading the data from the ESP8266 */
+SoftwareSerial ESP8266(6, 7); // TXD-pin -> 6, RXD-pin -> 7 
+
 
 void receiveEvent();
 
@@ -21,9 +33,9 @@ void setup()
     Serial.begin(9600);
     Serial.println("Car connected");
 
-    /* Set up I2C communications */ 
-    Wire.begin(I2C_SLAVE);
-    Wire.onReceive(receiveEvent);
+    // /* Set up I2C communications */ 
+    // Wire.begin(I2C_SLAVE);
+    // Wire.onReceive(receiveEvent);
 
     /* Shift register pins */
     pinMode(LATCH_PIN, OUTPUT);
@@ -38,28 +50,54 @@ void setup()
     pinMode(STATUS_LED_PIN, OUTPUT);
     digitalWrite(STATUS_LED_PIN, LOW);
 
-    /* TODO: Set up wireless communications and ensure proper connection */
-    //...
+    /* Start the serial communication with the WiFi module */
+    ESP8266.begin(115200);
 
-    //Dummy delay for simulation setup of comms:
-    for (int i = 5; i > 0; i--){
-        digitalWrite(STATUS_LED_PIN, HIGH);
-        delay(100);
-        digitalWrite(STATUS_LED_PIN, LOW);
-        delay(900);
+    /* When WiFi-module is ready (LOW), proceed */
+    while ( digitalRead(A0) != LOW );
+
+    /* Wait until actual, proper communications have occured */
+    Serial.println("Waiting for key...");
+    while (true) {
+        if (ESP8266.available() == 4) {
+            const uint8_t key[] = {1, 2, 3, 4};
+            uint8_t buf[4];
+
+            ESP8266.readBytes(buf, sizeof(buf));
+            Serial.print(buf[0]);
+            Serial.print(buf[1]);
+            Serial.print(buf[2]);
+            Serial.println(buf[3]);
+
+            if (memcmp(key, buf, sizeof(key)) == 0){
+                /* If the bytes received matches the key, then we are good to go! */
+                break;
+            }+
+        }
+        delay(200);
     }
 
-    /* Comms are set up, notify by lighting up status LED, and proceed with the main loop */
+    /* Turn on status LED to signal that the car is ready */
     digitalWrite(STATUS_LED_PIN, HIGH);
+
+    Serial.println("Car ready.");
 }
 
 void loop()
 {
     // Receive the signal from the controller
-    //TODO: *this
+    /* Check for 4 incoming bytes */
+    if (ESP8266.available() == 4){
+        forwards  = (bool)(ESP8266.read());
+        speed     =  (int)(ESP8266.read());
+        rightTurn = (bool)(ESP8266.read());
+        turn      =  (int)(ESP8266.read());
+    }
 
-    
-    // Interpret the signal from the controller
+    // char b[20];
+    // sprintf(b, "%d,%d,%d,%d", forwards, speed, rightTurn, turn);
+    // Serial.println(b);
+
     /* Establish deadzones of the speed and turn variables */
     /* Note that speed and turn are in the interval [0,255] */
     /* These values must be adjusted */
@@ -137,9 +175,9 @@ void loop()
         speedRightWheel = 0;
     }
 
-    char buf[90];
-    sprintf(buf, "Turn: %d, speedright: %d, speedleft: %d", turn, speedRightWheel, speedLeftWheel);
-    Serial.println(buf);
+    // char buf[90];
+    // sprintf(buf, "Turn: %d, speedright: %d, speedleft: %d", turn, speedRightWheel, speedLeftWheel);
+    // Serial.println(buf);
 
     /* Ensure no odd speed values */
     speedLeftWheel  =  speedLeftWheel > 0 ?  speedLeftWheel : 0;
@@ -151,14 +189,14 @@ void loop()
     // We are done for the iteration.
 }
 
-void receiveEvent()
-{
-    if (Wire.available() == 4){
-        forwards    = Wire.read();
-        speed       = Wire.read();
-        rightTurn   = Wire.read();
-        turn        = Wire.read();
-    }
+// void receiveEvent()
+// {
+//     if (Wire.available() == 4){
+//         forwards    = Wire.read();
+//         speed       = Wire.read();
+//         rightTurn   = Wire.read();
+//         turn        = Wire.read();
+//     }
 
-    return;
-}
+//     return;
+// }

@@ -4,14 +4,39 @@
  * 
  * */
 
+#include <ESP8266WiFi.h>
+#include <espnow.h>
+
 #include "Arduino.h"
 #include "Wire.h"
 #include "Adafruit_SSD1306.h"
 #include "graphics.h"
 
+#define WIFI ( 1 )
+
 #define SDA_PIN ( 4 )         // SDA, D2
 #define SCL_PIN ( 5 )         // SCL, D1
 #define I2C_SLAVE ( 0x14 )    // I2C address of slave (car). Arbitrary, but must match with the address set up by the car.
+
+#if (WIFI == 1)
+// WiFi stuff
+uint8_t receiverAddress[] = { 0x2C, 0x3A, 0xE8, 0x43, 0x5C, 0x27 }; // MAC address of receiver (slave): 2C:3A:E8:43:5C:27
+
+// const char ssid[] = "RC_car";
+// const char pass[] = "12345678";
+// const char host[] = "192.168.1.1"; // IP of car server
+
+// WiFiClient client;
+
+// ESP8266WebServer server(80);
+
+// IPAddress local_ip(192, 168, 1, 1);
+// IPAddress gateway(192, 168, 1, 1);
+// IPAddress subnet(255, 255, 255, 0);
+
+// IPAddress server(192, 168, 4, 1);
+// WiFiClient client;
+#endif
 
 #define BTN_PIN  ( 2 ) // D4
 
@@ -20,6 +45,8 @@
 #define DISP_ADDRESS ( 0x3C ) // I2C address of display
 
 #define IMU_ADDRESS ( (uint8_t)0x68 ) // I2C address of accelerometer
+
+#define WIFI_CHANNEL (    1 )
 
 /* IMU raw data variables */
 int16_t gyroRawX;
@@ -56,6 +83,9 @@ void _readIMU(void);
 void getRefinedData(void);
 void startupSequence(int delayDuration);
 void drawArrow(int speed, bool forward, int turn, bool right);
+void transmissionComplete(uint8_t *receiver_mac, uint8_t transmissionStatus);
+
+//void sendData(bool forward, int speed, bool rightTurn, int turn);
 
 IRAM_ATTR void btnCallback(void);
 
@@ -68,13 +98,35 @@ void setup()
     Serial.begin(115200);
 
     /* Start the wireless communications */
-    // TODO:
+#if (WIFI == 1)
+
+    Serial.print("Setting up wireless comms...");
+
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+
+    if (esp_now_init() != 0){
+        Serial.println("failed.");
+        return;
+    }
+
+    esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER);
+    esp_now_register_send_cb(transmissionComplete);
+    esp_now_add_peer(receiverAddress, ESP_NOW_ROLE_SLAVE, WIFI_CHANNEL, NULL, 0);
+
+    Serial.println("succesful!");
+    /* Send startup key */
+
+    uint8_t key[] = {1, 2, 3, 4};
+    esp_now_send(receiverAddress, key, sizeof(key));
+
+#endif
 
     /* Start the display */
     Serial.print("Starting display service... ");
     if (!disp.begin(SSD1306_SWITCHCAPVCC, DISP_ADDRESS)){
         Serial.println("display failed.");
-    while (true);
+        while (true);
     }
     disp.clearDisplay();
     disp.setTextSize(1);
@@ -141,7 +193,7 @@ void loop()
         /* If remote is running, display and transmit data */
 
         /* Display useful data */
-        if (ctr > 100){
+        if (ctr > 120){
             char buf[50];
 
             //sprintf(buf, "Pitch: % 5.3f \n\rRoll:  % 5.3f", pitch, roll);
@@ -161,16 +213,23 @@ void loop()
             
             /* Reset the counter */
             ctr = 0;
+
+#if (WIFI == 1)        
+            // TODO: Transmit the data to the car
+            // Send: forwards, speed, rightTurn, turn
+            uint8_t data[] = {(uint8_t)forwards, (uint8_t)speed, (uint8_t)rightTurn, (uint8_t)turn};
+            esp_now_send(receiverAddress, data, sizeof(data));
+#endif
         }
 
-        // TODO: Transmit the data to the car
-        // Send: forwards, speed, rightTurn, turn
+#if (WIFI == 0)
         Wire.beginTransmission(I2C_SLAVE);
         Wire.write((uint8_t)forwards);
         Wire.write((uint8_t)speed);
         Wire.write((uint8_t)rightTurn);
         Wire.write((uint8_t)turn);
         Wire.endTransmission();
+#endif
     }
 
     // TODO: Consider error handling/feedback from car
@@ -194,15 +253,22 @@ void loop()
 
             /* Reset the counter */
             ctr = 0;
+#if (WIFI == 1)            
+            /* Send four empty bytes to stop car from moving */
+            uint8_t data[] = {0, 0, 0, 0};
+            esp_now_send(receiverAddress, data, sizeof(data));
+#endif
         }
 
-        /* Send four empty bytes to stop car from moving */
+
+#if (WIFI == 0)
         Wire.beginTransmission(I2C_SLAVE);
         Wire.write(0);
         Wire.write(0);
         Wire.write(0);
         Wire.write(0);
         Wire.endTransmission();
+#endif
     }
 
     /* Wait until the loop has used 4 ms before proceeding */
@@ -362,6 +428,44 @@ void drawArrow(int speed, bool forward, int turn, bool right)
     return;
 }
 
+
+/* Callback after transmission */
+void transmissionComplete(uint8_t *receiver_mac, uint8_t transmissionStatus)
+{
+    if (transmissionStatus == 0){
+        Serial.println("Data sent successfully!");
+    }
+    else {
+        Serial.printf("Error code: %d", transmissionStatus);
+    }
+
+    return;
+}
+
+
+/* Send the data to the car server */
+// void sendData(bool forward, int speed, bool rightTurn, int turn)
+// {
+
+//     /* Data must be sent on the format:
+//      * car?forwards=X&speed=X&rightTurn=X&turn=X
+//      */
+//     if(client.connect(host,80)){
+//         client.println("GET /car?"
+//                       "forwards="  + String(forward)
+//                     + "&speed="     + String(speed)
+//                     + "&rightTurn=" + String(rightTurn)
+//                     + "&turn="      + String(turn)
+//                     +" HTTP/1.1");
+//         client.println("Host: " + String(host));
+//         client.println("Connection: close");
+//         client.println();
+//         client.flush();
+//         client.stop();
+//     }
+
+//     return;
+// }
 
 /* Interrupt service routine */
 IRAM_ATTR void btnCallback(void)

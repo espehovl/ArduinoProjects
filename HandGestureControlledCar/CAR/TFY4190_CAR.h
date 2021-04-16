@@ -11,6 +11,6 @@
 #define CTRL_B 10  //ENB, Left motor
 
 // Status LED pin
-#define STATUS_LED_PIN A0
+#define STATUS_LED_PIN A1
 
 #endif
