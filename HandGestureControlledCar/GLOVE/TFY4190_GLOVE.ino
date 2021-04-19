@@ -55,6 +55,9 @@ unsigned long elapsedTime = 0; // Elapsed loop time in ms
 /* Counter for the display service */
 unsigned long ctr = 0;
 
+/* Counter for the data transmission */
+unsigned long dataCtr = 0;
+
 /* Button pressed flag */
 volatile bool running = false;
 
@@ -103,7 +106,7 @@ void setup()
     Serial.println("succesful!");
     
     /* Send startup key */
-    uint8_t key[] = {1, 2, 3, 4};
+    uint8_t key[] = {0x69, 1, 2, 3, 4, 0x42};
     esp_now_send(receiverAddress, key, sizeof(key));
 
     /* Start the display */
@@ -170,12 +173,25 @@ void loop()
     /* Set the max vaue if we get overflow */
     turn = turn > maxTurn ? maxTurn : turn;
 
-    /* Increment display counter */
+    /* Increment counters */
     ctr++;
+    dataCtr++;
 
     if (running){
         /* If remote is running, display and transmit data */
-        //if (ctr)
+
+        /* Transmit the data to the car */
+        if (dataCtr > 30){
+            // Send: forwards, speed, rightTurn, turn
+            sendData(forwards, speed, rightTurn, turn);
+
+            char buf[50];
+            sprintf(buf, "%d, %d, %d, %d", forwards, speed, rightTurn, turn);
+            Serial.println(buf);
+
+            /* Reset the counter */
+            dataCtr = 0;
+        }
         
         /* Display useful data */
         if (ctr > 100){
@@ -197,10 +213,6 @@ void loop()
 
             /* Reset the counter */
             ctr = 0;
-
-            // Transmit the data to the car
-            // Send: forwards, speed, rightTurn, turn
-            sendData(forwards, speed, rightTurn, turn);
         }
     }
 
@@ -226,11 +238,7 @@ void loop()
 
             /* Send four empty bytes to stop car from moving */
             sendData(0, 0, 0, 0);
-
         }
-
-
-
     }
 
     /* Wait until the loop has used 4 ms before proceeding */
@@ -395,7 +403,7 @@ void drawArrow(int speed, bool forward, int turn, bool right)
 void transmissionComplete(uint8_t *receiver_mac, uint8_t transmissionStatus)
 {
     if (transmissionStatus == 0){
-        Serial.println("Data sent successfully!");
+        //Serial.println("Data sent successfully!");
     }
     else {
         Serial.printf("Error code: %d", transmissionStatus);
@@ -408,8 +416,10 @@ void transmissionComplete(uint8_t *receiver_mac, uint8_t transmissionStatus)
 /* Send the data to the car server */
 void sendData(bool _forward, int _speed, bool _rightTurn, int _turn)
 {
-    // Send: forwards, speed, rightTurn, turn
-    uint8_t data[] = {(uint8_t)_forward, (uint8_t)_speed, (uint8_t)_rightTurn, (uint8_t)_turn};
+    // Send: ack, forwards, speed, rightTurn, turn
+    uint8_t ack = 0x69;
+    uint8_t end = 0x42;
+    uint8_t data[] = {ack, (uint8_t)_forward, (uint8_t)_speed, (uint8_t)_rightTurn, (uint8_t)_turn, end};
     esp_now_send(receiverAddress, data, sizeof(data));
 
     return;

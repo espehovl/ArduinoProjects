@@ -21,6 +21,8 @@ bool forwards;
 int  turn;
 bool rightTurn;
 
+const uint8_t ack = 0x69;
+const uint8_t end = 0x42;
 
 /* Set up a software serial port for reading the data from the ESP8266 */
 SoftwareSerial ESP8266(6, 7); // TXD-pin -> 6, RXD-pin -> 7 
@@ -59,20 +61,22 @@ void setup()
     /* Wait until actual, proper communications have occured */
     Serial.println("Waiting for key...");
     while (true) {
-        if (ESP8266.available() == 4) {
-            const uint8_t key[] = {1, 2, 3, 4};
-            uint8_t buf[4];
+        if (ESP8266.available() == 6) {
+            const uint8_t key[] = {ack, 1, 2, 3, 4, end};
+            uint8_t buf[6];
 
             ESP8266.readBytes(buf, sizeof(buf));
             Serial.print(buf[0]);
             Serial.print(buf[1]);
             Serial.print(buf[2]);
-            Serial.println(buf[3]);
+            Serial.print(buf[3]);
+            Serial.print(buf[4]);
+            Serial.println(buf[5]);
 
             if (memcmp(key, buf, sizeof(key)) == 0){
                 /* If the bytes received matches the key, then we are good to go! */
                 break;
-            }+
+            }
         }
         delay(200);
     }
@@ -87,16 +91,31 @@ void loop()
 {
     // Receive the signal from the controller
     /* Check for 4 incoming bytes */
-    if (ESP8266.available() == 4){
-        forwards  = (bool)(ESP8266.read());
-        speed     =  (int)(ESP8266.read());
-        rightTurn = (bool)(ESP8266.read());
-        turn      =  (int)(ESP8266.read());
+    // if ( ESP8266.available() > 4){
+    //     ESP8266.flush();
+    // }
+
+    int i = 0;
+    while (ESP8266.available() >=6 ){
+        if (ESP8266.read() == ack){
+            forwards  = (bool)(ESP8266.read());
+            speed     =  (int)(ESP8266.read());
+            rightTurn = (bool)(ESP8266.read());
+            turn      =  (int)(ESP8266.read());
+            //ESP8266.flush();
+            if (ESP8266.read() == end){
+                /* Proper data has been received */
+                break;
+            }
+            else {
+                continue;
+            }
+        }
     }
 
-    // char b[20];
-    // sprintf(b, "%d,%d,%d,%d", forwards, speed, rightTurn, turn);
-    // Serial.println(b);
+    char b[20];
+    sprintf(b, "%d,%d,%d,%d", forwards, speed, rightTurn, turn);
+    Serial.println(b);
 
     /* Establish deadzones of the speed and turn variables */
     /* Note that speed and turn are in the interval [0,255] */
