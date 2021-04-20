@@ -15,11 +15,6 @@
 
 #define SDA_PIN ( 4 )         // SDA, D2
 #define SCL_PIN ( 5 )         // SCL, D1
-#define I2C_SLAVE ( 0x14 )    // I2C address of slave (car). Arbitrary, but must match with the address set up by the car.
-
-
-
-
 
 #define BTN_PIN  ( 2 ) // D4
 
@@ -181,32 +176,26 @@ void loop()
         /* If remote is running, display and transmit data */
 
         /* Transmit the data to the car */
-        if (dataCtr > 30){
-            // Send: forwards, speed, rightTurn, turn
+        if (dataCtr > 10){
             sendData(forwards, speed, rightTurn, turn);
 
-            char buf[50];
-            sprintf(buf, "%d, %d, %d, %d", forwards, speed, rightTurn, turn);
-            Serial.println(buf);
+            // char buf[50];
+            // sprintf(buf, "%d, %d, %d, %d", forwards, speed, rightTurn, turn);
+            // Serial.println(buf);
 
             /* Reset the counter */
             dataCtr = 0;
         }
-        
+
         /* Display useful data */
         if (ctr > 100){
             char buf[50];
-
-            //sprintf(buf, "Pitch: % 5.3f \n\rRoll:  % 5.3f", pitch, roll);
-    
-            disp.clearDisplay();
-            disp.setCursor(0, 56);
-            //disp.println(buf);
             sprintf(buf, "Speed:%c%3d Turn: %c%3d", forwards ? '+' : '-', speed, rightTurn ? '+' : '-', turn);
 
             /* Provide some feedback on the controller display */
+            disp.clearDisplay();
             drawArrow(speed, forwards, turn, rightTurn);
-
+            disp.setCursor(0, 56);
             disp.println(buf);
             disp.invertDisplay(false);
             disp.display();

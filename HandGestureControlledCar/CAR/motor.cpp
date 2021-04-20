@@ -33,12 +33,12 @@ void setMotors(Direction dir)
         // Both motors move forward
         data = 0b00110101;
         break;
-    
+
     case Direction::backward:
         // Both motors move backward
         data = 0b11001010;
         break;
-    
+
     case Direction::left:
         // Right motor moves forward
         data = 0b00100001;
@@ -48,7 +48,7 @@ void setMotors(Direction dir)
         // Left motor moves forward
         data = 0b00010100;
         break;
-    
+
     case Direction::sharp_left:
         // Left motor backward, right forward
         data = 0b01101001;

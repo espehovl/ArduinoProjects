@@ -1,43 +1,30 @@
-//#include <ESP8266WiFi.h>
-//#include <WiFiEsp.h>
 #include <SoftwareSerial.h>
 #include <WString.h>
 
-#include "Wire.h"
-
 #include "TFY4190_CAR.h"
 #include "motor.h"
-
-#define WIFI ( 1 )
-
-#define I2C_SLAVE ( 0x14 )
 
 Direction dir;
 int speedLeftWheel;
 int speedRightWheel;
 
+/* Instructions received from the controller */
 int  speed;
 bool forwards;
 int  turn;
 bool rightTurn;
 
+/* Data transmission-related bytes */
 const uint8_t ack = 0x69;
 const uint8_t end = 0x42;
 
 /* Set up a software serial port for reading the data from the ESP8266 */
 SoftwareSerial ESP8266(6, 7); // TXD-pin -> 6, RXD-pin -> 7 
 
-
-void receiveEvent();
-
 void setup()
 {
     Serial.begin(9600);
     Serial.println("Car connected");
-
-    // /* Set up I2C communications */ 
-    // Wire.begin(I2C_SLAVE);
-    // Wire.onReceive(receiveEvent);
 
     /* Shift register pins */
     pinMode(LATCH_PIN, OUTPUT);
@@ -53,7 +40,7 @@ void setup()
     digitalWrite(STATUS_LED_PIN, LOW);
 
     /* Start the serial communication with the WiFi module */
-    ESP8266.begin(115200);
+    ESP8266.begin(38400);
 
     /* When WiFi-module is ready (LOW), proceed */
     while ( digitalRead(A0) != LOW );
@@ -90,19 +77,14 @@ void setup()
 void loop()
 {
     // Receive the signal from the controller
-    /* Check for 4 incoming bytes */
-    // if ( ESP8266.available() > 4){
-    //     ESP8266.flush();
-    // }
-
-    int i = 0;
+    /* Check for 6 incoming bytes */
+    uint8_t buf[6];
     while (ESP8266.available() >=6 ){
         if (ESP8266.read() == ack){
             forwards  = (bool)(ESP8266.read());
             speed     =  (int)(ESP8266.read());
             rightTurn = (bool)(ESP8266.read());
             turn      =  (int)(ESP8266.read());
-            //ESP8266.flush();
             if (ESP8266.read() == end){
                 /* Proper data has been received */
                 break;
@@ -156,7 +138,7 @@ void loop()
 
     else if (speed >= speedDeadzone) {
         // As long as we don't do a sharp or medium turn, we mostly go either forwards or backwards
-        // We do slow turns by adjust motor speed, instead of completely stopping a wheel
+        // We do slow turns by adjusting motor speed, instead of completely stopping a wheel
         if (forwards){
             // Drive forwards
             dir = Direction::forward;
@@ -171,19 +153,18 @@ void loop()
         speedRightWheel = speed;
 
         // ...but we must consider slow turns, this is done by adjusting the motor speeds
-        // TODO: This part may need some thinking and adjustments!
-
+        // This part may need some thinking and adjustments!
         if (turn >= turnDeadzone){
-            float turnEagerness = 1.0;
+            float turnEagerness = 1.1;
             if (rightTurn) {
-                // The idea: Reduce the speed of the wheel, as a function of the turn(roll) angle.
+                // The idea: Reduce the speed of the wheel as a function of the turn(roll) angle.
                 // We will never actually reach 255 in this part of the code, but I think it's
                 // nice and easy to relate to, if we keep it linear. Consider adjusting.
                 speedRightWheel -= turnEagerness * map(turn, turnDeadzone, 255, 0, speedRightWheel);
             }
             else {
                 speedLeftWheel -= turnEagerness *  map(turn, turnDeadzone, 255, 0, speedLeftWheel);
-            }            
+            }
         }
     }
 
@@ -208,14 +189,3 @@ void loop()
     // We are done for the iteration.
 }
 
-// void receiveEvent()
-// {
-//     if (Wire.available() == 4){
-//         forwards    = Wire.read();
-//         speed       = Wire.read();
-//         rightTurn   = Wire.read();
-//         turn        = Wire.read();
-//     }
-
-//     return;
-// }

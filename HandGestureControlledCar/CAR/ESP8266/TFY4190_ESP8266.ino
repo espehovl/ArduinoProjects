@@ -14,7 +14,7 @@ void dataReceived(uint8_t *senderMac, uint8_t *data, uint8_t dataLength);
 
 void setup()
 {
-    USE_SERIAL.begin(115200);
+    USE_SERIAL.begin(38400);
 
     USE_SERIAL.println(WiFi.macAddress());
 
