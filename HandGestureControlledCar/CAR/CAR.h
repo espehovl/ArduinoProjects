@@ -1,5 +1,5 @@
-#ifndef _TFY4190_CAR_H_
-#define _TFY4190_CAR_H_
+#ifndef _CAR_H_
+#define _CAR_H_
 
 //Shift register pins
 #define LATCH_PIN   12  //RCLK
