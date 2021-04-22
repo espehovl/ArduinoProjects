@@ -1,29 +1,38 @@
-/* Glove application
- * Wemos D1 mini
- * Lots of inspiration from: https://github.com/bekspace/lolin_d1_mini-mpu6050/blob/master/d1_mini_mpu.ino 
+/***********************************************
+ * Glove application
+ *
+ * FILE:
+ *      GLOVE.ino
  * 
- * */
+ * AUTHOR:
+ *      Espen Hovland, April 2021
+ *
+ * HARDWARE:
+ *      Wemos D1 mini
+ *      SSD1306 128x64 OLED
+ *      MPU-6050 IMU module
+ *
+ * INFO:
+ *      Pin D2 is used for SDA, D1 is used for SCL
+ *
+ *      For the MPU interfaciong, I got a lot of inspiration from: 
+ *      https://github.com/bekspace/lolin_d1_mini-mpu6050/blob/master/d1_mini_mpu.ino
+ *
+ **********************************************/
 
 #include <ESP8266WiFi.h>
 #include <espnow.h>
-
 #include "Arduino.h"
 #include "Wire.h"
 #include "Adafruit_SSD1306.h"
+
 #include "graphics.h"
 
-
-#define SDA_PIN ( 4 )         // SDA, D2
-#define SCL_PIN ( 5 )         // SCL, D1
-
-#define BTN_PIN  ( 2 ) // D4
-
+#define BTN_PIN      (    2 ) // D4
 #define DISP_WIDTH   (  128 )
 #define DISP_HEIGHT  (   64 )
 #define DISP_ADDRESS ( 0x3C ) // I2C address of display
-
-#define IMU_ADDRESS ( (uint8_t)0x68 ) // I2C address of accelerometer
-
+#define IMU_ADDRESS  ( 0x68 ) // I2C address of accelerometer
 #define WIFI_CHANNEL (    1 )
 
 /* IMU raw data variables */
@@ -48,7 +57,7 @@ unsigned long loopTimer;
 unsigned long elapsedTime = 0; // Elapsed loop time in ms
 
 /* Counter for the display service */
-unsigned long ctr = 0;
+unsigned long dispCtr = 0;
 
 /* Counter for the data transmission */
 unsigned long dataCtr = 0;
@@ -56,8 +65,12 @@ unsigned long dataCtr = 0;
 /* Button pressed flag */
 volatile bool running = false;
 
-/* MAC address of receiver (slave), 2C:3A:E8:43:5C:27 */
-uint8_t receiverAddress[] = { 0x2C, 0x3A, 0xE8, 0x43, 0x5C, 0x27 };
+/* MAC address of receiver (vehicle), 2C:3A:E8:43:5C:27 */
+uint8_t receiverAddress[] = {0x2C, 0x3A, 0xE8, 0x43, 0x5C, 0x27};
+
+/* Acknowledge and end bytes for naive handshake */
+uint8_t ack = 0x69;
+uint8_t end = 0x42;
 
 /* Create display object */
 Adafruit_SSD1306 disp(DISP_WIDTH, DISP_HEIGHT, &Wire, -1);
@@ -71,6 +84,7 @@ void drawArrow(int speed, bool forward, int turn, bool right);
 void transmissionComplete(uint8_t *receiver_mac, uint8_t transmissionStatus);
 void sendData(bool forward, int speed, bool rightTurn, int turn);
 
+/* Interrupt Service Routine */
 IRAM_ATTR void btnCallback(void);
 
 /************************************************************************/
@@ -99,9 +113,9 @@ void setup()
     esp_now_add_peer(receiverAddress, ESP_NOW_ROLE_SLAVE, WIFI_CHANNEL, NULL, 0);
 
     Serial.println("succesful!");
-    
+
     /* Send startup key */
-    uint8_t key[] = {0x69, 1, 2, 3, 4, 0x42};
+    uint8_t key[] = {ack, 1, 2, 3, 4, end};
     esp_now_send(receiverAddress, key, sizeof(key));
 
     /* Start the display */
@@ -135,10 +149,10 @@ void loop()
     getRefinedData();
 
     /* Convert the pitch into speed */
-    int maxSpeed = 255;
+    const uint8_t maxSpeed = 255;
     bool forwards;
     int speed;
-    
+
     forwards = pitch > 0 ? true : false; // true if positive pitch (forward tilt), false otherwise
 
     if (forwards) {
@@ -147,12 +161,12 @@ void loop()
     else {
         speed = map(pitch, 0, -50, 0, maxSpeed);
     }
-    
+
     /* Set the max value if we get overflow */
     speed = speed > maxSpeed ? maxSpeed : speed;
 
     /* Convert the roll into turn */
-    int maxTurn = 255;
+    const uint8_t maxTurn = 255;
     bool rightTurn;
     int turn;
 
@@ -169,26 +183,20 @@ void loop()
     turn = turn > maxTurn ? maxTurn : turn;
 
     /* Increment counters */
-    ctr++;
+    dispCtr++;
     dataCtr++;
 
     if (running){
         /* If remote is running, display and transmit data */
-
-        /* Transmit the data to the car */
         if (dataCtr > 10){
             sendData(forwards, speed, rightTurn, turn);
-
-            // char buf[50];
-            // sprintf(buf, "%d, %d, %d, %d", forwards, speed, rightTurn, turn);
-            // Serial.println(buf);
 
             /* Reset the counter */
             dataCtr = 0;
         }
 
         /* Display useful data */
-        if (ctr > 100){
+        if (dispCtr > 100){
             char buf[50];
             sprintf(buf, "Speed:%c%3d Turn: %c%3d", forwards ? '+' : '-', speed, rightTurn ? '+' : '-', turn);
 
@@ -201,13 +209,13 @@ void loop()
             disp.display();
 
             /* Reset the counter */
-            ctr = 0;
+            dispCtr = 0;
         }
     }
 
     else if (!running){
         /* Do not send any useful data, but notify user on display */
-        if (ctr > 200){
+        if (dispCtr > 200){
             char buf[50];
 
             disp.clearDisplay();
@@ -223,7 +231,7 @@ void loop()
             disp.display();
 
             /* Reset the counter */
-            ctr = 0;
+            dispCtr = 0;
 
             /* Send four empty bytes to stop car from moving */
             sendData(0, 0, 0, 0);
@@ -258,7 +266,7 @@ void setupIMU()
 }
 
 
-/* Read data from the IMU */
+/* Read raw data from the IMU */
 void _readIMU()
 {
     int dummy;
@@ -287,7 +295,7 @@ void _readIMU()
 }
 
 
-/* Read data and perform all the mathematics */
+/* Get data and perform all the mathematics */
 void getRefinedData()
 {
     /* Ensure that fresh raw data is available */
@@ -318,11 +326,10 @@ void getRefinedData()
 void startupSequence(int delayDuration)
 {
     char buf[50];
-
     sprintf(buf, "Controller starting,\n\rhold unit still...");
-    
+
+    /* Display the countdown */
     for (int i = delayDuration; i > 0; i--){
-        /* Display the countdown */
         disp.clearDisplay();
         disp.setTextSize(1);
         disp.setCursor(0, 0);
@@ -331,7 +338,6 @@ void startupSequence(int delayDuration)
         disp.setCursor(54, 30);
         disp.print(i);
         disp.display();
-        
         delay(1000);
     }
 
@@ -391,10 +397,7 @@ void drawArrow(int speed, bool forward, int turn, bool right)
 /* Callback after transmission */
 void transmissionComplete(uint8_t *receiver_mac, uint8_t transmissionStatus)
 {
-    if (transmissionStatus == 0){
-        //Serial.println("Data sent successfully!");
-    }
-    else {
+    if (transmissionStatus != 0){
         Serial.printf("Error code: %d", transmissionStatus);
     }
 
@@ -406,8 +409,6 @@ void transmissionComplete(uint8_t *receiver_mac, uint8_t transmissionStatus)
 void sendData(bool _forward, int _speed, bool _rightTurn, int _turn)
 {
     // Send: ack, forwards, speed, rightTurn, turn
-    uint8_t ack = 0x69;
-    uint8_t end = 0x42;
     uint8_t data[] = {ack, (uint8_t)_forward, (uint8_t)_speed, (uint8_t)_rightTurn, (uint8_t)_turn, end};
     esp_now_send(receiverAddress, data, sizeof(data));
 

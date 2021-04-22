@@ -1,9 +1,51 @@
+/***********************************************
+ * Vehicle application
+ *
+ * FILE:
+ *      CAR.ino
+ *
+ * AUTHOR:
+ *      Espen Hovland, April 2021
+ *
+ * HARDWARE:
+ *      Arduino UNO R3
+ *      L298N dual H-bridge motor driver
+ *      HC595 shift register
+ *
+ * INFO:
+ *      An ESP8266 ESP-01 is connected to the UNO
+ *      via serial connection. See separate code.
+ *
+ **********************************************/
+
 #include <SoftwareSerial.h>
-#include <WString.h>
 
-#include "CAR.h"
-#include "motor.h"
 
+//Shift register pins
+#define LATCH_PIN   12  //RCLK
+#define DATA_PIN    11  //SER
+#define CLOCK_PIN   13  //SRCLK
+
+// Motor H-bridge control pins
+#define CTRL_A 9   //ENA, Right motor
+#define CTRL_B 10  //ENB, Left motor
+
+#define STATUS_LED_PIN A1
+#define ESP_READY_PIN  A0
+
+// Enum for the different motor combinations
+enum class Direction
+{
+    forward,
+    backward,
+    left,
+    right,
+    sharp_left,
+    sharp_right,
+    stop
+};
+
+/* Variables for motor control */
 Direction dir;
 int speedLeftWheel;
 int speedRightWheel;
@@ -19,10 +61,17 @@ const uint8_t ack = 0x69;
 const uint8_t end = 0x42;
 
 /* Set up a software serial port for reading the data from the ESP8266 */
-SoftwareSerial ESP8266(6, 7); // TXD-pin -> 6, RXD-pin -> 7 
+SoftwareSerial ESP8266(6, 7); // TXD-pin -> 6, RXD-pin -> 7
+
+/* Local functions */
+void setMotors(Direction dir);
+void drive(Direction dir, int speedLeftMotor, int speedRightMotor);
+
+/************************************************************************/
 
 void setup()
 {
+    /* Start serial communications */
     Serial.begin(9600);
     Serial.println("Car connected");
 
@@ -39,13 +88,13 @@ void setup()
     pinMode(STATUS_LED_PIN, OUTPUT);
     digitalWrite(STATUS_LED_PIN, LOW);
 
-    /* Start the serial communication with the WiFi module */
+    /* Start the software-serial communication with the WiFi module */
     ESP8266.begin(38400);
 
-    /* When WiFi-module is ready (LOW), proceed */
-    while ( digitalRead(A0) != LOW );
+    /* When WiFi-module is ready (pin is pulled LOW), proceed */
+    while ( digitalRead(ESP_READY_PIN) != LOW );
 
-    /* Wait until actual, proper communications have occured */
+    /* Wait for the controller to send the key */
     Serial.println("Waiting for key...");
     while (true) {
         if (ESP8266.available() == 6) {
@@ -76,7 +125,6 @@ void setup()
 
 void loop()
 {
-    // Receive the signal from the controller
     /* Check for 6 incoming bytes */
     uint8_t buf[6];
     while (ESP8266.available() >=6 ){
@@ -94,10 +142,6 @@ void loop()
             }
         }
     }
-
-    char b[20];
-    sprintf(b, "%d,%d,%d,%d", forwards, speed, rightTurn, turn);
-    Serial.println(b);
 
     /* Establish deadzones of the speed and turn variables */
     /* Note that speed and turn are in the interval [0,255] */
@@ -175,10 +219,6 @@ void loop()
         speedRightWheel = 0;
     }
 
-    // char buf[90];
-    // sprintf(buf, "Turn: %d, speedright: %d, speedleft: %d", turn, speedRightWheel, speedLeftWheel);
-    // Serial.println(buf);
-
     /* Ensure no odd speed values */
     speedLeftWheel  =  speedLeftWheel > 0 ?  speedLeftWheel : 0;
     speedRightWheel = speedRightWheel > 0 ? speedRightWheel : 0;
@@ -189,3 +229,79 @@ void loop()
     // We are done for the iteration.
 }
 
+
+/********************************************************************************************/
+
+/* Set the direction and the speed of each motor */
+void drive(Direction dir, int speedLeftMotor, int speedRightMotor)
+{
+    setMotors(dir);
+    analogWrite(CTRL_A, speedRightMotor);
+    analogWrite(CTRL_B, speedLeftMotor);
+
+    return;
+}
+
+
+/* Sets the motors to the desired direction/mode*/
+void setMotors(Direction dir)
+{
+    uint8_t data;
+
+    /* data will take the form of a 8 bit number, 
+     * with the following format:
+     *  | MSB |     |     |     |     |     |     | LSB |
+     *  |   Driving lights      | IN4 | IN3 | IN2 | IN1 |
+     *  | RR  | RL  | FL  | FR  |   LEFT    |   RIGHT   |
+     */
+
+    switch (dir)
+    {
+    case Direction::forward:
+        // Both motors move forward
+        data = 0b00110101;
+        break;
+
+    case Direction::backward:
+        // Both motors move backward
+        data = 0b11001010;
+        break;
+
+    case Direction::left:
+        // Right motor moves forward
+        data = 0b00100001;
+        break;
+
+    case Direction::right:
+        // Left motor moves forward
+        data = 0b00010100;
+        break;
+
+    case Direction::sharp_left:
+        // Left motor backward, right forward
+        data = 0b01101001;
+        break;
+
+    case Direction::sharp_right:
+        // Right motor backward, left forward
+        data = 0b10010110;
+        break;
+
+    case Direction::stop:
+        // Stop
+        data = 0b11110000;
+        break;
+    default:
+        // Do nothing
+        data = 0b00000000;
+        break;
+    }
+
+    // Write the data to the motor control pins via the shift register
+    digitalWrite(LATCH_PIN, LOW);
+    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, data);
+    digitalWrite(LATCH_PIN, HIGH);
+
+    // We are done
+    return;
+}

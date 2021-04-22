@@ -1,14 +1,25 @@
-/*
- * This is the slave device!
-*/
+/***********************************************
+ * Vehicle receiver application
+ *
+ * FILE:
+ *      ESP8266.ino
+ *
+ * AUTHOR:
+ *      Espen Hovland, April 2021
+ *
+ * HARDWARE:
+ *      ESP8266 ESP-01
+ *
+ * INFO:
+ *      Code for receiving data from the glove
+ *      and forwarding it to the vehicle.
+ *
+ **********************************************/
 
 #include <ESP8266WiFi.h>
 #include <espnow.h>
 
 #define USE_SERIAL Serial
-
-
-// MAC address of this unit: 2C:3A:E8:43:5C:27
 
 void dataReceived(uint8_t *senderMac, uint8_t *data, uint8_t dataLength);
 
@@ -22,14 +33,12 @@ void setup()
     WiFi.disconnect();
 
     pinMode(LED_BUILTIN, OUTPUT);
-    
 
     if (esp_now_init() != 0){
         // Init failed!
         digitalWrite(LED_BUILTIN, HIGH); // Do not light the LED
         return;
     }
-    
 
     esp_now_register_recv_cb(dataReceived);
 
