@@ -15,10 +15,10 @@ Keywords: ESP8266, MPU-6050, ESP-NOW, RC
 
 ## Circuit diagrams
 
-![Car](pictures/car_breadboard.jpg?raw=true "Schematic of car")
+![Car](pictures/car_breadboard.png?raw=true "Schematic of car")
 
-![Glove](pictures/glove_breadboard.jpg?raw=true "Schematic of glove")
+![Glove](pictures/glove_breadboard.png?raw=true "Schematic of glove")
 
 ## Instructions
 
-![instructions](pictures/usermanual.png "User manual")
+![instructions](pictures/usermanual.png?raw=true "User manual")
