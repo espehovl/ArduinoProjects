@@ -1,6 +1,6 @@
 # Arduino Drink Mixer
 
-This will happen soon, but not all parts have arrived yet.
+This will happen soon, but not all parts have arrived yet. Until the project is finished, this repo will only be a backup of the code.
 
 #### Features to come:
 
