@@ -1,0 +1,54 @@
+# Example of recipe file
+# Pump number and their drinks
+1 Vodka
+2 Jeger
+3 Cointreau
+4 Absinth
+5 Sprite
+6 Solo
+7 OJ
+8 Battery
+
+# Recipes:
+# < 
+# Name1, number of ingredients
+# Drink1, amount1 [mL]
+# Drink2, amount [ml]
+# ...
+# >
+# <
+# Name2, number of ingredients
+# Drink1, amount [mL]
+# Drink2, amount [ml]
+# ...
+# >
+
+# Number of recipes
+= 4
+
+<
+Screwdriver, 2
+Vodka, 40
+OJ, 200
+>
+
+<
+Hellhound, 3
+Jeger, 40
+Cointreau, 40
+Battery, 375
+>
+
+<
+Jallafaen, 4
+Vodka, 40
+Absinth, 60
+Solo, 300
+Sprite, 100
+>
+
+<
+Basic, 1
+Battery, 1000
+>
+
