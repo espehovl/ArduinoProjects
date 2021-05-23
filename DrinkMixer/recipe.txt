@@ -1,4 +1,3 @@
-# Example of recipe file
 # Pump number and their drinks
 1 Vodka
 2 Jeger

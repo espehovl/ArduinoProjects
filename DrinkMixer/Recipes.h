@@ -10,18 +10,18 @@
 
 struct Pump {
     int     id;
-    String drink;
+    String  drink;
 };
 
 struct Ingredient {
     String beverage;
-    int     volume;     // Amount in ml
+    int    volume;     // Amount in mL
 };
 
 struct Recipe{
-    String name;
-    Ingredient ingredients[MAX_INGREDIENTS]; // Hard code hallelujah
-    int num_ingredients;
+    String      name;
+    Ingredient  ingredients[MAX_INGREDIENTS]; // Hard code hallelujah
+    int         num_ingredients;
 };
 
 #endif

@@ -22,4 +22,6 @@
     CS:   10  */
 #define SPI_CS_PIN 10
 
+// void SRSendCommand(uint8_t *data, int len);
+
 #endif

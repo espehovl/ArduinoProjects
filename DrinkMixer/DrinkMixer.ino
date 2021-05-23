@@ -6,24 +6,25 @@
  * Storage issues!!! <- will be solved when Mega arrives
  * 
  ***********************************************************/
-
-
-#include "DrinkMixer.h"
-#include "Recipes.h"
-
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <HX711_ADC.h>
 
+#include "DrinkMixer.h"
+#include "Recipes.h"
+#include "pumps.h"
+
+
+
 // HX711_ADC loadCell{LOADCELL_DATA_PIN, LOADCELL_SCLK_PIN};
-LiquidCrystal_I2C lcd{LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS};
+// LiquidCrystal_I2C lcd{LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS};
 
 
 static Pump     pumps[NUMBER_OF_PUMPS];
 static Recipe   recipes[NUMBER_OF_RECIPES];
-static File     SDCard;
+File     SDCard;
 
 static int  numRecipes;
 
@@ -36,7 +37,7 @@ void fetchRecipes(int &nRecipes);
 void setup()
 {
     Serial.begin(9600);
-    Wire.begin();
+    //Wire.begin();
 
     /* Init SD card and collect recipes */
     if (initSDCard() != 0){
@@ -48,12 +49,12 @@ void setup()
     Serial.println(" recipes found in SD card!");
 
     /* Init LCD display */
-    lcd.init();
-    lcd.backlight();
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Please weight...");
-    lcd.display();
+    // lcd.init();
+    // lcd.backlight();
+    // lcd.clear();
+    // lcd.setCursor(0, 0);
+    // lcd.print("Please weight...");
+    // lcd.display();
 
     /* Init load cell */
     // loadCell.begin();
@@ -75,6 +76,8 @@ void setup()
     // }
 
     // lcd.clear();
+
+    mixDrink(&recipes[0], pumps);
 }
 
 void loop()
@@ -86,7 +89,12 @@ void loop()
     // lcd.setCursor(0, 1);
     // lcd.print(val);
     // lcd.display();
-
+    // for (int i = 0; i < NUMBER_OF_PUMPS; i++){
+    //     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
+    //     shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, pumpToBin(&pumps[i]));
+    //     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
+    //     delay(1000);
+    // }
 }
 
 
