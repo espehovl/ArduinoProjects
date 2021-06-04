@@ -17,38 +17,53 @@ uint8_t pumpToBin(Pump *p){
     return ~byte; // Relays are active low
 }
 
-void performPump(Pump *p, int ms){
+void performPump(Pump *p, unsigned long ms, LiquidCrystal_I2C* LCD){
+
+    /* Start pumping */
     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
     shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, pumpToBin(p));
     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
-    delay(ms);
+
+    unsigned long T = millis();
+
+    LCD->setCursor(0, 3);
+    LCD->print("                    "); // "20 blank spaces"
+    LCD->setCursor(0, 3);
+    while( millis() - T < ms){
+        // Print a progress bar
+        LCD->print('_');
+        LCD->display();
+        delay(ms / 20);
+    }
+
+    /* Stop pumping */
     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
-    shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, 0b11111111); // Relays are active low
+    shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~0); // Relays are active low
     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
     return;
 }
 
 /****************************************************
  * @brief Pour the ingredient from the correct pump
- * @param ing pointer to Ingredient-object to be poured
+ * @param ing Pointer to Ingredient-object to be poured
  * @param ps  Pointer to array of available Pumps
  ****************************************************/
-void pourIngredient(Ingredient *ing, Pump *ps){
+void pourIngredient(Ingredient *ing, Pump *ps, LiquidCrystal_I2C* LCD){
     unsigned int pumpIdx;
-    unsigned int pourTime; // [ms]
+    unsigned long pourTime; // [ms]
 
     /* Find the pump with the ingredient */
     for (pumpIdx = 0; pumpIdx < NUMBER_OF_PUMPS; pumpIdx++){
         if (ps[pumpIdx].drink == ing->beverage){
-            //pumpIdx = i;
             break;
         }
     }
 
+    // TODO: If amount is 0, fill cup until 350 ml (grams) 
+    // Register weight of contents so far, calculate the amount needed for 350 ml total drink, set that as the required volume
 
-    pourTime = (unsigned int)(1000.0 * ing->volume / ((float)PUMP_RATE)); // [ms]
+    pourTime = (unsigned long)(1000.0 * ing->volume / ((float)PUMP_RATE)); // [ms]
 
-    Serial.println();
     Serial.print("Pouring ");
     Serial.print(ing->beverage);
     Serial.print(" (pump ");
@@ -57,23 +72,39 @@ void pourIngredient(Ingredient *ing, Pump *ps){
     Serial.print(pourTime/1000.0);
     Serial.println(" seconds");
 
-    performPump(&ps[pumpIdx], pourTime); // Blocking for pourTime milliseconds!
+    performPump(&ps[pumpIdx], pourTime, LCD); // Blocking for pourTime milliseconds!
 
     return;
 }
 
 /****************************************************
  * @brief Mix the drink according to the recipe
- * @param rec Recipe-object to be mixed
+ * @param rec Pointer to Recipe-object to be mixed
  * @param ps  Pointer to array of available Pumps
  ****************************************************/
-void mixDrink(Recipe *rec, Pump *ps){
-    Serial.print("Mixing drink: ");
+void mixDrink(Recipe *rec, Pump *ps, LiquidCrystal_I2C *LCD){
+    char buf[LCD_COLS+1];
+
+    Serial.print("\n\rMixing drink: ");
     Serial.println(rec->name);
 
+    LCD->clear();
+    LCD->setCursor(0, 0);
+    snprintf(buf, sizeof(buf), "%s", rec->name.c_str());
+    LCD->print(buf);
+
     for (int i = 0; i < rec->num_ingredients; i++){
-        pourIngredient(&(rec->ingredients[i]), ps);
-        delay(100); // Is this useful?
+        LCD->setCursor(0, 1);
+        snprintf(buf, sizeof(buf), "Status:          %d/%d", i + 1, rec->num_ingredients);
+        LCD->print(buf);
+        LCD->setCursor(0, 2);
+        snprintf(buf, sizeof(buf), "%-12s%5d mL", rec->ingredients[i].beverage.c_str(), rec->ingredients[i].volume);
+        LCD->print(buf);
+        LCD->display();
+
+        pourIngredient(&(rec->ingredients[i]), ps, LCD);
+
+        delay(1000); // Is this useful/needed?
     }
 
     return;

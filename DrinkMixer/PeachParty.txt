@@ -1,0 +1,108 @@
+# Pump number and their drinks
+1 Vodka
+2 Peach Tree
+3 Cointreau
+4 Passoa
+5 Sprite
+6 Cranberry
+7 OJ
+8 Grapefruit
+
+# Recipes:
+# < 
+# Name1, number of ingredients
+# Drink1, amount [mL]
+# Drink2, amount [ml]
+# ...
+# >
+# <
+# Name2, number of ingredients
+# Drink1, amount [mL]
+# Drink2, amount [ml]
+# ...
+# >
+# Additional info:
+# Set "0" as amount if you want to fill glass to set limit (for long drinks)
+
+# Number of recipes
+= 11
+
+<
+Cosmopolitan, 3
+Vodka, 30
+Cointreau, 10
+Cranberry, 40
+>
+
+<
+Passionate Cosmo, 3
+Vodka, 40
+Passoa, 20
+Cointreau, 20
+>
+
+<
+Sex on the Beach, 4
+Vodka, 30
+Peach Tree, 10
+OJ, 40
+Cranberry, 40
+>
+
+<
+Bay of Passion, 4
+Vodka, 30
+Passoa, 30
+Cranberry, 60
+Grapefruit, 60
+>
+
+<
+Sea Breeze, 3
+Vodka, 40
+Cranberry, 80
+Grapefruit, 50
+>
+
+<
+The Must, 4
+Vodka, 20
+Peach Tree, 20
+Cranberry, 30
+Sprite, 0
+>
+
+<
+Woo-Woo, 3
+Vodka, 20
+Peach Tree, 20
+Cranberry, 0
+>
+
+<
+Skirt Hunter, 3
+Vodka, 20
+Peach Tree, 20
+Sprite, 0
+>
+
+<
+Ragnar's Dream, 4
+Vodka, 20
+Passoa, 20
+OJ, 40
+Sprite, 0
+>
+
+<
+Pink Passion, 3
+Vodka, 30
+Passoa, 30
+Sprite, 0
+>
+
+<
+Screwdriver, 2
+Vodka, 50
+OJ, 0
+>

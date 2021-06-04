@@ -18,43 +18,57 @@
 
 
 
-// HX711_ADC loadCell{LOADCELL_DATA_PIN, LOADCELL_SCLK_PIN};
-// LiquidCrystal_I2C lcd{LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS};
-
+HX711_ADC loadCell{LOADCELL_DATA_PIN, LOADCELL_SCLK_PIN};
+LiquidCrystal_I2C lcd{LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS};
 
 static Pump     pumps[NUMBER_OF_PUMPS];
 static Recipe   recipes[NUMBER_OF_RECIPES];
-File     SDCard;
+File            SDCard;
 
-static int  numRecipes;
+static int  numRecipes; // Number of actual recipes read from SD card
+// static char FILENAME[MAX_FILENAME_LENGTH];
+#define FILENAME "recipe.txt"
+static char files[NUM_DIRECTORY_FILES][MAX_FILENAME_LENGTH];
 
-
-int  initSDCard();
-void fetchRecipes(int &nRecipes);
+int   initSDCard();
+void  fetchRecipes(int &nRecipes);
+void  listDirectory(File dir, int numTabs);
+void  selectRecipeFile();
 
 /**********************************************************************/
 
 void setup()
 {
+    /* Init shift register pins */
+    pinMode(SR_RELAY_CLOCK_PIN, OUTPUT);
+    pinMode(SR_RELAY_LATCH_PIN, OUTPUT);
+    pinMode(SR_RELAY_DATA_PIN,  OUTPUT);
+    // TODO: Add support for shift register number 2
+    // TODO: Ensure that relays are not active during startup!
+    digitalWrite(SR_RELAY_LATCH_PIN, LOW);
+    shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~0); // Relays are active low
+    digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
+
     Serial.begin(9600);
-    //Wire.begin();
+    Wire.begin();
 
     /* Init SD card and collect recipes */
     if (initSDCard() != 0){
         Serial.println("Could not initialize SD card!");
         while(1);
     }
+    // TODO: Legg inn støtte for å lese tilgjengelige filer på SD-kort, for så å velge den filen man ønsker. Se: https://www.arduino.cc/en/Tutorial/LibraryExamples/Listfiles
     fetchRecipes(numRecipes);
     Serial.print(numRecipes);
     Serial.println(" recipes found in SD card!");
 
     /* Init LCD display */
-    // lcd.init();
-    // lcd.backlight();
-    // lcd.clear();
-    // lcd.setCursor(0, 0);
-    // lcd.print("Please weight...");
-    // lcd.display();
+    lcd.init();
+    lcd.backlight();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Please weight...");
+    lcd.display();
 
     /* Init load cell */
     // loadCell.begin();
@@ -62,11 +76,7 @@ void setup()
     // loadCell.setCalFactor(1); // TODO: Set this value properly when calibrating sensor
     // loadCell.tare();
 
-    /* Init shift register pins */
-    pinMode(SR_RELAY_CLOCK_PIN, OUTPUT);
-    pinMode(SR_RELAY_LATCH_PIN, OUTPUT);
-    pinMode(SR_RELAY_DATA_PIN,  OUTPUT);
-    // TODO: Add support for shift register number 2
+
 
     // for (uint8_t i = 0; i < 255; i++){
     //     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
@@ -76,25 +86,39 @@ void setup()
     // }
 
     // lcd.clear();
-
-    mixDrink(&recipes[0], pumps);
+    for (int i = 0; i < numRecipes; i++){
+        mixDrink(&recipes[i], pumps, &lcd);
+        delay(100);
+    }
+    delay(2000);
+    lcd.clear();
 }
 
 void loop()
 {
     // TODO: Write smart logic for the main operation of the drink mixer here.
+    
     // loadCell.update();
     // float val = loadCell.getData();
     // lcd.clear();
     // lcd.setCursor(0, 1);
     // lcd.print(val);
     // lcd.display();
+    // delay(200);
     // for (int i = 0; i < NUMBER_OF_PUMPS; i++){
     //     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
     //     shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, pumpToBin(&pumps[i]));
     //     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
     //     delay(1000);
     // }
+    // digitalWrite(SR_RELAY_LATCH_PIN, LOW);
+    // shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~1);
+    // digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
+    // delay(1000);
+    // digitalWrite(SR_RELAY_LATCH_PIN, LOW);
+    // shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~0);
+    // digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
+    // delay(1000);
 }
 
 
@@ -128,24 +152,9 @@ int initSDCard(){
  * @param  nRecipes Variable to hold number of recipes found
  *************************************************************/
 void fetchRecipes( int &nRecipes ){
-    // Serial.print("Initializing SD card...");
-    // if (!SD.begin(SPI_CS_PIN)){
-    //     Serial.println("failed!");
-    //     while(1);
-    // }
-    // Serial.println("done!");
-
-    // Serial.print("Finding file...");
-    // if (!SD.exists(FILENAME)){
-    //     Serial.println("failed!");
-    //     while(1);
-    // }
-    // Serial.println("OK!");
-
     SDCard = SD.open(FILENAME);
     if (SDCard){
         bool readingRecipes = false;
-
         int ctr = 0;
 
         while(SDCard.available()){
@@ -179,7 +188,6 @@ void fetchRecipes( int &nRecipes ){
                 }
                 else {
                     /* We are reading recipes */
-                    //TODO: Read and store recipes in a useful way
                     String  name;
                     String  ing;
                     int   amount;
@@ -192,7 +200,7 @@ void fetchRecipes( int &nRecipes ){
                         name = buf.substring(1, idx);
                         numIngs = buf.substring(idx + 1).toInt();
 
-                        recipes[ctr].name = name;
+                        recipes[ctr].name            = name;
                         recipes[ctr].num_ingredients = numIngs;
 
                         for (int i = 0; i < min(numIngs, MAX_INGREDIENTS); i++){
@@ -239,7 +247,50 @@ void fetchRecipes( int &nRecipes ){
     //     }
     //     Serial.println();
     // }
-
-    //return nRecipes;
 }
 
+// TODO: Make this add all files to a list, for the user to pick the file for recipes.
+void listDirectory(File dir, int numTabs) {
+    static int index = 0;
+    while (true){
+        File entry = dir.openNextFile();
+        if (!entry){
+            // no more files
+            break;
+        }
+
+        for (uint8_t i = 0; i < numTabs; i++){
+            Serial.print('\t');
+        }
+
+        Serial.print(entry.name());
+
+        if (entry.isDirectory()){
+            Serial.println("/");
+            listDirectory(entry, numTabs + 1);
+        }
+        else{
+            // files have sizes, directories do not
+            Serial.print("\t\t");
+            Serial.println(entry.size(), DEC);
+
+            // Add the file to the array of available files
+            snprintf(files[index], min(sizeof(entry.name()), MAX_FILENAME_LENGTH), "%s", entry.name());
+        }
+        entry.close();
+  }
+}
+
+// TODO: List the available files and select the recipe file
+void selectRecipeFile(){
+    // char file[MAX_FILENAME_LENGTH];
+
+
+    // // TODO: use the rotary encoder to choose the file
+
+
+    // // Copy the selected filename to the global variable
+    // memcpy(FILENAME, file, MAX_FILENAME_LENGTH);
+}
+
+// TODO: Set up interrupt routines for the rotary encoder

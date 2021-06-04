@@ -3,10 +3,11 @@
 
 #include <Arduino.h>
 
-#define FILENAME      "recipe.txt"  // Filename of file with recipes on SD-card
+// #define FILENAME      "recipe.txt"  // Filename of file with recipes on SD-card
 #define NUMBER_OF_PUMPS    (   8 )
-#define NUMBER_OF_RECIPES  (   5 )  // We can increase this when we get the Mega
-#define MAX_INGREDIENTS    (   4 )  // We can increase this when we get the Mega
+#define NUMBER_OF_RECIPES  (  12 )
+#define MAX_INGREDIENTS    (   5 )
+#define LONG_DRINK_VOLUME  ( 350 )  // mL
 
 struct Pump {
     int     id;

@@ -15,13 +15,11 @@
 #define SR_RELAY_DATA_PIN       (    5 ) // SER
 #define SR_RELAY_CLOCK_PIN      (    7 ) // SRCLK
 
-/*  SPI pins:
-    SCK:  13
-    MISO: 12
-    MOSI: 11
-    CS:   10  */
-#define SPI_CS_PIN 10
 
+#define SPI_CS_PIN 53
+
+#define NUM_DIRECTORY_FILES     (    3 ) // Number of directory files to display
+#define MAX_FILENAME_LENGTH     (   30 )
 // void SRSendCommand(uint8_t *data, int len);
 
 #endif
