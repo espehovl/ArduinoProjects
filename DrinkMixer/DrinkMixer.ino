@@ -3,7 +3,6 @@
  * 
  * Author: Espen Hovland, Steinar Valbø
  * 
- * Storage issues!!! <- will be solved when Mega arrives
  * 
  ***********************************************************/
 #include <SPI.h>
@@ -12,9 +11,11 @@
 #include <LiquidCrystal_I2C.h>
 #include <HX711_ADC.h>
 
+
 #include "DrinkMixer.h"
 #include "Recipes.h"
 #include "pumps.h"
+
 
 
 
@@ -24,6 +25,7 @@ LiquidCrystal_I2C lcd{LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS};
 static Pump     pumps[NUMBER_OF_PUMPS];
 static Recipe   recipes[NUMBER_OF_RECIPES];
 File            SDCard;
+String          IPAddress;
 
 static int  numRecipes; // Number of actual recipes read from SD card
 // static char FILENAME[MAX_FILENAME_LENGTH];
@@ -43,40 +45,98 @@ void setup()
     pinMode(SR_RELAY_CLOCK_PIN, OUTPUT);
     pinMode(SR_RELAY_LATCH_PIN, OUTPUT);
     pinMode(SR_RELAY_DATA_PIN,  OUTPUT);
-    // TODO: Add support for shift register number 2
-    // TODO: Ensure that relays are not active during startup!
+    // TODO: Add support for shift register number 2(?)
+    // TODO: Ensure that relays are not active during startup! (manual switch)
     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
     shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~0); // Relays are active low
     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
 
     Serial.begin(9600);
-    Wire.begin();
+    Serial1.begin(9600); // For communicating with the WiFi module
+
+    Wire.begin(); // I2C comms
+
+    /* Init LCD display */
+    lcd.init();
+    lcd.backlight();
+    lcd.clear();
+
+    lcd.setCursor(0, 0);
+    lcd.print("Initializing...");
+    lcd.display();
+
 
     /* Init SD card and collect recipes */
     if (initSDCard() != 0){
         Serial.println("Could not initialize SD card!");
         while(1);
     }
+    
+    lcd.setCursor(0, 1);
+    lcd.print("Reading SD card...");
+    lcd.display();
+
     // TODO: Legg inn støtte for å lese tilgjengelige filer på SD-kort, for så å velge den filen man ønsker. Se: https://www.arduino.cc/en/Tutorial/LibraryExamples/Listfiles
+    // ...
     fetchRecipes(numRecipes);
     Serial.print(numRecipes);
     Serial.println(" recipes found in SD card!");
-
-    /* Init LCD display */
-    lcd.init();
-    lcd.backlight();
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Please weight...");
+    lcd.setCursor(0, 1);
+    lcd.print(numRecipes);
+    lcd.print(" recipes found!  ");
     lcd.display();
 
     /* Init load cell */
+    lcd.setCursor(0, 2);
+    lcd.print("Calibrating scale...");
+    lcd.display();
     // loadCell.begin();
     // loadCell.start(1000);
     // loadCell.setCalFactor(1); // TODO: Set this value properly when calibrating sensor
     // loadCell.tare();
+    delay(1000); // Load cell simulator
+    lcd.setCursor(0, 2);
+    lcd.print("Scale zeroed!       ");
+    lcd.display();
+
+    // TODO: Set up comms with the WiFi-module
+    lcd.setCursor(0, 3);
+    lcd.print("Connecting to WiFi..");
+    lcd.display();
+    /* Get the IP-address of the module */
+    while (true){
+        if ( Serial1.available() > 0 && Serial1.read() == COMMS_IP_FLAG ){
+            char buf[20];
+            byte data[4];
+            data[0] = Serial1.read();
+            data[1] = Serial1.read();
+            data[2] = Serial1.read();
+            data[3] = Serial1.read();
+
+            snprintf(buf, 20, "%d.%d.%d.%d", data[0], data[1], data[2], data[3]);
+            IPAddress = String(buf);
+            Serial1.write(COMMS_IP_ACK); // We have received the IP address
+            break;
+        }
+        delay(50);
+    }
+
+    Serial.print("IP: ");
+    Serial.println(IPAddress);
+    //...
+    /* Send the recipes to the WiFi-module */
+    Serial1.write(COMMS_RECIPE_FLAG);
+    Serial1.write(numRecipes);
+    for ( int i = 0; i < numRecipes; i++){
+        Serial1.write((byte *)&recipes[i], sizeof(recipes[i])); // How do we receive this?
+
+    }
 
 
+    delay(1000); // Comms setup simulator
+    lcd.setCursor(0, 3);
+    lcd.print("WiFi OK!            ");
+    lcd.display();
 
     // for (uint8_t i = 0; i < 255; i++){
     //     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
@@ -86,18 +146,25 @@ void setup()
     // }
 
     // lcd.clear();
-    for (int i = 0; i < numRecipes; i++){
-        mixDrink(&recipes[i], pumps, &lcd);
-        delay(100);
-    }
+    // for (int i = 0; i < numRecipes; i++){
+    //     mixDrink(&recipes[i], pumps, &lcd);
+    //     delay(100);
+    // }
+
+    /* Finalize */
     delay(2000);
     lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Order your drinks at");
+    lcd.setCursor(0, 2);
+    lcd.print(IPAddress);
+    lcd.display();
 }
 
 void loop()
 {
     // TODO: Write smart logic for the main operation of the drink mixer here.
-    
+
     // loadCell.update();
     // float val = loadCell.getData();
     // lcd.clear();
@@ -195,9 +262,9 @@ void fetchRecipes( int &nRecipes ){
 
                     if ( buf.charAt(1) == '<'){
                         /* New recipe, get name and number of ingredients */
-                        buf = SDCard.readStringUntil('\r');
+                        buf     = SDCard.readStringUntil('\r');
                         int idx = buf.indexOf(','); // Get index of delimiter
-                        name = buf.substring(1, idx);
+                        name    = buf.substring(1, idx);
                         numIngs = buf.substring(idx + 1).toInt();
 
                         recipes[ctr].name            = name;
