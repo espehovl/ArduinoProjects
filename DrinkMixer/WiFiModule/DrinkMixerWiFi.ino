@@ -10,8 +10,8 @@
 #include "DrinkMixerWiFi.h"
 #include "site.h"
 
-char ssid[] = "edruroam";
-char pass[] = "PastaFormaggio42";
+char ssid[] = "********";
+char pass[] = "********";
 
 int receivedRecipes;
 
