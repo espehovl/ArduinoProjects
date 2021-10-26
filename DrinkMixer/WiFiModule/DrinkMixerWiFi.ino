@@ -4,46 +4,45 @@
  * 
  ******************************************/
 
+#include <string.h>
+
 #include "ESP8266WiFi.h"
 #include "ESP8266WebServer.h"
 
 #include "DrinkMixerWiFi.h"
 #include "site.h"
+#include "credentials.h" // SSID and passwords are stored in this file
 
-char ssid[] = "********";
-char pass[] = "********";
+char ssid[] = CRED_WIFI_SSID;
+char pass[] = CRED_WIFI_PASS;
 
-int receivedRecipes;
+char site[8196];        // The main site html. Let's have some headroom here, shall we?
 
-Recipe recipes[NUMBER_OF_RECIPES];
+uint8_t receivedRecipes;
+
+WebRecipe recipes[NUMBER_OF_RECIPES];
 
 ESP8266WebServer server;
 
-void welcome();
+void homepage();
 void orderDrink();
+
 
 void setup()
 {
     Serial.begin(9600);
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, LOW); // Active low, this one. Light up when comms are okay
 
+    pinMode(NOTIFY_PIN, OUTPUT);
+    digitalWrite(NOTIFY_PIN, LOW);
 
-    // Serial.print("Connecting to WiFi");
     WiFi.begin(ssid, pass);
     while(WiFi.status() != WL_CONNECTED){
-        // Serial.print(".");
         delay(500);
     }
-    // Serial.println("success!");
-    digitalWrite(LED_BUILTIN, HIGH);
-
 
     // Send the IP address to the Mega, to show on the display
-    // String ip = WiFi.localIP().toString();
     while (true){
-        Serial.write(COMMS_IP_FLAG); // Notify that we are about to send IP address
-        // Serial.write(ip.c_str());
+        Serial.write(COMMS_IP_FLAG); // Notify that we are about to send the IP address
         Serial.write(WiFi.localIP()[0]);
         Serial.write(WiFi.localIP()[1]);
         Serial.write(WiFi.localIP()[2]);
@@ -54,26 +53,50 @@ void setup()
             break;
         }
     }
-    
-    
-    // TODO: Receive the recipes from the SD card
-    // Use the same structs as in the Mega code
-    // ...
+
+    /* Receive the recipes from the Mega */
     while (true){
         if (Serial.available() > 0 && Serial.read() == COMMS_RECIPE_FLAG){
-            // TODO: Fill in this blank
+            receivedRecipes = Serial.read(); // First byte is number of recipes
+            int controlCounter = 0;
+            for (int r = 0; r < receivedRecipes; r++){
+                Serial.readBytes(recipes[r].name, MAX_STRING_LENGTH); // Receive the name of the drink
+                Serial.readBytes(&recipes[r].num_ingredients, sizeof(uint8_t)); // Receive the number of ingredients
+                for (int i = 0; i < recipes[r].num_ingredients; i++){
+                    // Receive the drink ingredient types
+                    Serial.readBytes(recipes[r].ingredients[i], MAX_STRING_LENGTH);
+                }
+                controlCounter++;
+            }
+            if (controlCounter == receivedRecipes){
+                // The recipes have been received, acknowledge
+                Serial.write(COMMS_RECIPE_ACK);
+                break;
+            }
         }
-        delay(50);
+        else
+            delay(100);
     }
 
-
+    char listItem[512];
+    char ingredientList[256];
     /* Complete the html page according to the recipes */
-    char listItem[100];
-    snprintf(listItem, 100, "<a href=\"/drink?type=%s\"><li>%s</li></a>", "dummy", "dummier");
-    // +++
+    strncat_P(site, top, sizeof(top)); // Copy the top section
+    for (int r = 0; r < receivedRecipes; r++){
+        memset(listItem, 0, sizeof(listItem));
+        memset(ingredientList, 0, sizeof(ingredientList));
+        for (int i = 0; i < recipes[r].num_ingredients; i++){
+            char beverageBuf[40];
+            snprintf(beverageBuf, sizeof(beverageBuf), "<p>%s</p>", recipes[r].ingredients[i]);
+            strncat(ingredientList, beverageBuf, sizeof(beverageBuf));
+        }
+        snprintf(listItem, sizeof(listItem), "<a href=\"/drink?type=%s\"><li>%s %s</li></a>", recipes[r].name, recipes[r].name, ingredientList);
+        strncat(site, listItem, sizeof(listItem)); // Add the entries for each drink
+    }
+    strncat_P(site, tail, sizeof(tail)); // Add the rest of the html
 
     /* Events */
-    server.on("/", welcome);
+    server.on("/", homepage);
     server.on("/drink", orderDrink);
 
     /* Start the server */
@@ -86,32 +109,33 @@ void loop()
     server.handleClient();
 }
 
-/************************************************************/
+/*************************************************************/
 
 
-void welcome(){
-    /* The initial web page */
-    server.send_P(200, "text/html", site);
-
-    // TODO: Display the available drinks
+void homepage(){
+    /* Send the web page */
+    server.send(200, "text/html", site);
 
     return;
 }
 
 void orderDrink(){
-    /* A drink has been ordered. Get it. */
+    /* A drink has been ordered. Fetch it. */
     String drink = server.arg("type");
-
     /* Transmit the ordered drink to the Mega */
-    if (drink != "Null" && drink != "null"){
-        // Serial.write(drink.c_str()); //... or something along these lines    
-        // Serial.print("Just ordered: ");
-        // Serial.println(drink);
-    }
-    else {
-        // Serial.println("Invalid drink");
+    if (drink != "null" && drink != "Null"){
+        Serial.write(COMMS_BEGIN_ORDER);
+        Serial.write(drink.c_str(), MAX_STRING_LENGTH);
+        Serial.write(COMMS_END_ORDER);
+
+        /* Alert the Mega that an order was received */
+        digitalWrite(NOTIFY_PIN, HIGH);
+        delay(50);
+        digitalWrite(NOTIFY_PIN, LOW);
     }
 
-    /* Send an empty response back */
+    /* Send an empty response (204) back */
     server.send(204, "");
+
+    return;
 }

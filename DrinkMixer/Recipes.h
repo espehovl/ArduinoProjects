@@ -5,22 +5,23 @@
 
 // #define FILENAME      "recipe.txt"  // Filename of file with recipes on SD-card
 #define NUMBER_OF_PUMPS    (   8 )
-#define NUMBER_OF_RECIPES  (  12 )  // We can increase this when we get the Mega
-#define MAX_INGREDIENTS    (   5 )  // We can increase this when we get the Mega
+#define NUMBER_OF_RECIPES  (  12 )
+#define MAX_INGREDIENTS    (   5 )
 #define LONG_DRINK_VOLUME  ( 350 )  // mL
+#define MAX_STRING_LENGTH  (  21 )  // The display is 20 characters wide
 
 struct Pump {
-    int     id;
-    String  drink;
+    int  id;
+    char drink[MAX_STRING_LENGTH];
 };
 
 struct Ingredient {
-    String beverage;
-    int    volume;     // Amount in mL
+    char beverage[MAX_STRING_LENGTH];
+    int  volume;                      // Amount in mL
 };
 
 struct Recipe{
-    String      name;
+    char        name[MAX_STRING_LENGTH];
     Ingredient  ingredients[MAX_INGREDIENTS]; // Hard code hallelujah
     int         num_ingredients;
 };

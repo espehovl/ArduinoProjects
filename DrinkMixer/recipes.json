@@ -1,0 +1,226 @@
+{
+    "numberOfPumps": 8,
+    "pumps": [
+        "Vodka",
+        "Peach Tree",
+        "Cointreau",
+        "Passoa",
+        "Sprite",
+        "Cranberry",
+        "OJ",
+        "Grapefruit"
+    ],
+    "numberOfRecipes": 11,
+    "recipes": [
+        {
+            "name": "Cosmopolitan",
+            "numberOfIngredients": 3,
+            "ingredients": [
+                {
+                    "type": "Vodka",
+                    "quantity": 30
+                },
+                {
+                    "type": "Cointreau",
+                    "quantity": 10
+                },
+                {
+                    "type": "Cranberry",
+                    "quantity": 40
+                }
+            ]
+        },
+        {
+            "name": "Passionate Cosmo",
+            "numberOfIngredients": 3,
+            "ingredients": [
+                {
+                    "type": "Vodka",
+                    "quantity": 40
+                },
+                {
+                    "type": "Passoa",
+                    "quantity": 20
+                },
+                {
+                    "type": "Cointreau",
+                    "quantity": 20
+                }
+            ]
+        },
+        {
+            "name": "Sex on the Beach",
+            "numberOfIngredients": 4,
+            "ingredients": [
+                {
+                    "type": "Vodka",
+                    "quantity": 30
+                },
+                {
+                    "type": "Peach Tree",
+                    "quantity": 10
+                },
+                {
+                    "type": "OJ",
+                    "quantity": 40
+                },
+                {
+                    "type": "Cranberry",
+                    "quantity": 40
+                }
+            ]
+        },
+        {
+            "name": "Bay of Passion",
+            "numberOfIngredients": 4,
+            "ingredients": [
+                {
+                    "type": "Vodka",
+                    "quantity": 30
+                },
+                {
+                    "type": "Passoa",
+                    "quantity": 30
+                },
+                {
+                    "type": "Cranberry",
+                    "quantity": 60
+                },
+                {
+                    "type": "Grapefruit",
+                    "quantity": 60
+                }
+            ]
+        },
+        {
+            "name": "Sea Breeze",
+            "numberOfIngredients": 3,
+            "ingredients": [
+                {
+                    "type": "Vodka",
+                    "quantity": 40
+                },
+                {
+                    "type": "Cranberry",
+                    "quantity": 80
+                },
+                {
+                    "type": "Grapefruit",
+                    "quantity": 50
+                }
+            ]
+        },
+        {
+            "name": "The Must",
+            "numberOfIngredients": 4,
+            "ingredients": [
+                {
+                    "type": "Vodka",
+                    "quantity": 20
+                },
+                {
+                    "type": "Peach Tree",
+                    "quantity": 20
+                },
+                {
+                    "type": "Cranberry",
+                    "quantity": 30
+                },
+                {
+                    "type": "Sprite",
+                    "quantity": 0
+                }
+            ]
+        },
+        {
+            "name": "Woo-Woo",
+            "numberOfIngredients":3,
+            "ingredients":[
+                {
+                    "type":"Vodka",
+                    "quantity":20
+                },
+                {
+                    "type":"Peach Tree",
+                    "quantity":20
+                },
+                {
+                    "type":"Cranberry",
+                    "quantity":0
+                }
+            ]
+        },
+        {
+            "name":"Skirt Hunter",
+            "numberOfIngredients":3,
+            "ingredients":[
+                {
+                    "type":"Vodka",
+                    "quantity":20
+                },
+                {
+                    "type":"Peach Tree",
+                    "quantity":20
+                },
+                {
+                    "type":"Sprite",
+                    "quantity":0
+                }
+            ]
+        },
+        {
+            "name":"Ragnar's Dream",
+            "numberOfIngredients":4,
+            "ingredients":[
+                {
+                    "type":"Vodka",
+                    "quantity":20
+                },
+                {
+                    "type":"Passoa",
+                    "quantity":20
+                },
+                {
+                    "type":"OJ",
+                    "quantity":40
+                },
+                {
+                    "type":"Sprite",
+                    "quantity":0
+                }
+            ]
+        },
+        {
+            "name":"Pink Passion",
+            "numberOfIngredients":3,
+            "ingredients":[
+                {
+                    "type":"Vodka",
+                    "quantity":30
+                },
+                {
+                    "type":"Passoa",
+                    "quantity":30
+                },
+                {
+                    "type":"Sprite",
+                    "quantity":0
+                }
+            ]
+        },
+        {
+            "name":"Screwdriver",
+            "numberOfIngredients":2,
+            "ingredients":[
+                {
+                    "type":"Vodka",
+                    "quantity":50
+                },
+                {
+                    "type":"OJ",
+                    "quantity":0
+                }
+            ]
+        }
+    ]
+}

@@ -1,5 +1,5 @@
 /***********************************************************
- * Arduino Drink Mixer
+ * Arduino Drink Mixer Application
  * 
  * Author: Espen Hovland, Steinar Valbø
  * 
@@ -10,7 +10,8 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <HX711_ADC.h>
-
+#include <ArduinoJson.h>
+#include <Adafruit_NeoPixel.h>
 
 #include "DrinkMixer.h"
 #include "Recipes.h"
@@ -19,23 +20,40 @@
 
 
 
-HX711_ADC loadCell{LOADCELL_DATA_PIN, LOADCELL_SCLK_PIN};
-LiquidCrystal_I2C lcd{LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS};
+HX711_ADC         loadCell {LOADCELL_DATA_PIN, LOADCELL_SCLK_PIN};
+LiquidCrystal_I2C lcd      {LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS};
+Adafruit_NeoPixel ledStrip {LED_STRIP_NUM_LEDS, LED_STRIP_DATA_PIN, NEO_GRB + NEO_KHZ800};
 
-static Pump     pumps[NUMBER_OF_PUMPS];
-static Recipe   recipes[NUMBER_OF_RECIPES];
-File            SDCard;
-String          IPAddress;
+DynamicJsonDocument jsonObject(2048);
 
-static int  numRecipes; // Number of actual recipes read from SD card
-// static char FILENAME[MAX_FILENAME_LENGTH];
-#define FILENAME "recipe.txt"
-static char files[NUM_DIRECTORY_FILES][MAX_FILENAME_LENGTH];
+Pump                pumps[NUMBER_OF_PUMPS];
+Recipe              recipes[NUMBER_OF_RECIPES];
+File                SDCard;
+String              IPAddress;
 
-int   initSDCard();
-void  fetchRecipes(int &nRecipes);
-void  listDirectory(File dir, int numTabs);
-void  selectRecipeFile();
+volatile bool       isButtonPressed           = false;
+volatile bool       isWebOrderAvailable       = false;
+volatile bool       updateFlag                = false;
+volatile bool       isCleaningRequested       = false;
+volatile int8_t     rotaryEncoderCounter      = 0;
+volatile uint8_t    rotaryEncoderCurrentState = 0;
+volatile uint8_t    rotaryEncoderLastState    = 0;
+
+static uint8_t  numRecipes; // Number of actual recipes read from SD card
+#define FILENAME "recipes.txt"
+#define WIFI_MODULE Serial2
+
+String  getIPAddress();
+int     initSDCard();
+void    fetchRecipes();
+void    placeWebOrder();
+Recipe* getRecipeFromName(char *drinkName, int lenDrinkName);
+
+/* Interrupt Service Routines */
+void buttonPressedISR();
+void incrementCounterISR();
+void orderNotifyISR();
+void cleanNotifyISR();
 
 /**********************************************************************/
 
@@ -45,14 +63,14 @@ void setup()
     pinMode(SR_RELAY_CLOCK_PIN, OUTPUT);
     pinMode(SR_RELAY_LATCH_PIN, OUTPUT);
     pinMode(SR_RELAY_DATA_PIN,  OUTPUT);
-    // TODO: Add support for shift register number 2(?)
-    // TODO: Ensure that relays are not active during startup! (manual switch)
+
+    /* Ensure that all relays are inactive upon boot */
     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
     shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~0); // Relays are active low
     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
 
     Serial.begin(9600);
-    Serial1.begin(9600); // For communicating with the WiFi module
+    WIFI_MODULE.begin(9600); // For communicating with the WiFi module
 
     Wire.begin(); // I2C comms
 
@@ -65,20 +83,18 @@ void setup()
     lcd.print("Initializing...");
     lcd.display();
 
-
     /* Init SD card and collect recipes */
     if (initSDCard() != 0){
         Serial.println("Could not initialize SD card!");
-        while(1);
+        while (true);
     }
-    
+
     lcd.setCursor(0, 1);
     lcd.print("Reading SD card...");
     lcd.display();
 
-    // TODO: Legg inn støtte for å lese tilgjengelige filer på SD-kort, for så å velge den filen man ønsker. Se: https://www.arduino.cc/en/Tutorial/LibraryExamples/Listfiles
-    // ...
-    fetchRecipes(numRecipes);
+    /* Get the recipes from the SD card */
+    fetchRecipes();
     Serial.print(numRecipes);
     Serial.println(" recipes found in SD card!");
     lcd.setCursor(0, 1);
@@ -94,102 +110,196 @@ void setup()
     // loadCell.start(1000);
     // loadCell.setCalFactor(1); // TODO: Set this value properly when calibrating sensor
     // loadCell.tare();
-    delay(1000); // Load cell simulator
     lcd.setCursor(0, 2);
     lcd.print("Scale zeroed!       ");
     lcd.display();
 
-    // TODO: Set up comms with the WiFi-module
+    /* Set up comms with the WiFi-module */
     lcd.setCursor(0, 3);
     lcd.print("Connecting to WiFi..");
     lcd.display();
-    /* Get the IP-address of the module */
     while (true){
-        if ( Serial1.available() > 0 && Serial1.read() == COMMS_IP_FLAG ){
-            char buf[20];
-            byte data[4];
-            data[0] = Serial1.read();
-            data[1] = Serial1.read();
-            data[2] = Serial1.read();
-            data[3] = Serial1.read();
-
-            snprintf(buf, 20, "%d.%d.%d.%d", data[0], data[1], data[2], data[3]);
-            IPAddress = String(buf);
-            Serial1.write(COMMS_IP_ACK); // We have received the IP address
+        IPAddress = getIPAddress();
+        if (IPAddress != ""){
             break;
         }
-        delay(50);
+        else {
+            delay(50);
+        }
     }
-
     Serial.print("IP: ");
     Serial.println(IPAddress);
-    //...
-    /* Send the recipes to the WiFi-module */
-    Serial1.write(COMMS_RECIPE_FLAG);
-    Serial1.write(numRecipes);
-    for ( int i = 0; i < numRecipes; i++){
-        Serial1.write((byte *)&recipes[i], sizeof(recipes[i])); // How do we receive this?
 
+    /* Send the recipes to the WiFi-module */
+    WIFI_MODULE.write(COMMS_RECIPE_FLAG);
+    Serial.println("Sending recipes...");
+    WIFI_MODULE.write(numRecipes); // Send the number of recipes read from SD card
+    for (int r = 0; r < numRecipes; r++){
+        WIFI_MODULE.write((uint8_t*) recipes[r].name, sizeof(recipes[r].name));
+        WIFI_MODULE.write((uint8_t) recipes[r].num_ingredients); // Send the number of ingredients
+        for (int i = 0; i < recipes[r].num_ingredients; i++){
+            WIFI_MODULE.write((uint8_t *)recipes[r].ingredients[i].beverage, sizeof(recipes[r].ingredients[i].beverage));
+        }
+    }
+    /* Verify that all data has been received before proceeding */
+    Serial.print("Waiting for reply...");
+    while (true)
+    {
+        if (WIFI_MODULE.available() > 0 && WIFI_MODULE.read() == COMMS_RECIPE_ACK){
+            Serial.println("Recipes sent successfully!");
+            break;
+        }
+        else {
+            delay(50);
+        }
     }
 
-
-    delay(1000); // Comms setup simulator
     lcd.setCursor(0, 3);
     lcd.print("WiFi OK!            ");
     lcd.display();
 
-    // for (uint8_t i = 0; i < 255; i++){
-    //     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
-    //     shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~i); // Relays are active low
-    //     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
-    //     delay(100);
-    // }
+    /* Rotary encoder */
+    pinMode(ROT_ENC_CLK_PIN, INPUT);
+    pinMode(ROT_ENC_DAT_PIN, INPUT);
+    pinMode(ROT_ENC_BTN_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(ROT_ENC_BTN_PIN), buttonPressedISR, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ROT_ENC_DAT_PIN), incrementCounterISR, CHANGE);
 
-    // lcd.clear();
-    // for (int i = 0; i < numRecipes; i++){
-    //     mixDrink(&recipes[i], pumps, &lcd);
-    //     delay(100);
-    // }
+    /* Drink order notification from WiFi-module */
+    pinMode(ORDER_NOTIFY_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(ORDER_NOTIFY_PIN), orderNotifyISR, RISING);
+
+    /* Cleaning program button */
+    pinMode(CLEAN_NOTIFY_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(CLEAN_NOTIFY_PIN), cleanNotifyISR, RISING);
 
     /* Finalize */
-    delay(2000);
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Order your drinks at");
     lcd.setCursor(0, 2);
     lcd.print(IPAddress);
     lcd.display();
+
+    /* Let the IP address be visible for some time */
+    delay(10000);
 }
 
 void loop()
 {
-    // TODO: Write smart logic for the main operation of the drink mixer here.
+    // TODO: Do something cool with the RGB LED strip
 
-    // loadCell.update();
-    // float val = loadCell.getData();
-    // lcd.clear();
-    // lcd.setCursor(0, 1);
-    // lcd.print(val);
-    // lcd.display();
-    // delay(200);
-    // for (int i = 0; i < NUMBER_OF_PUMPS; i++){
-    //     digitalWrite(SR_RELAY_LATCH_PIN, LOW);
-    //     shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, pumpToBin(&pumps[i]));
-    //     digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
-    //     delay(1000);
-    // }
-    // digitalWrite(SR_RELAY_LATCH_PIN, LOW);
-    // shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~1);
-    // digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
-    // delay(1000);
-    // digitalWrite(SR_RELAY_LATCH_PIN, LOW);
-    // shiftOut(SR_RELAY_DATA_PIN, SR_RELAY_CLOCK_PIN, MSBFIRST, ~0);
-    // digitalWrite(SR_RELAY_LATCH_PIN, HIGH);
-    // delay(1000);
+    if (updateFlag) {
+        lcd.clear();
+        for (int i = 0; i < 4; i++){
+            /* Draw the drink options on the display */
+            lcd.setCursor(1, i);
+            char buf[MAX_STRING_LENGTH-1];
+            snprintf(buf, sizeof(buf), "%s", recipes[(rotaryEncoderCounter / 4) * 4 + i].name);
+            lcd.print(buf);
+        }
+        lcd.setCursor(0, rotaryEncoderCounter % 4);
+        lcd.print(">");
+        lcd.display();
+        updateFlag = false;
+    }
+
+    if (isWebOrderAvailable){
+        placeWebOrder();
+        isWebOrderAvailable = false;
+        updateFlag = true;
+    }
+
+    else if (isButtonPressed){
+        isButtonPressed = false;
+
+        Serial.println("Drink order coming up!");
+
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Confirm order:");
+        lcd.setCursor(0, 1);
+        lcd.print(recipes[rotaryEncoderCounter].name);
+        lcd.setCursor(0, 3);
+        lcd.print("> OK!");
+        lcd.display();
+
+        unsigned long time = millis();
+        constexpr uint8_t timeout = 5; // seconds
+        while (millis() - time < timeout * 1000) {
+            if (isButtonPressed){
+                mixDrink(&recipes[rotaryEncoderCounter], pumps, &lcd);
+                break;
+            }
+            else {
+                lcd.setCursor(15, 3);
+                lcd.print("(");
+                lcd.print(timeout - (millis() - time) / 1000);
+                lcd.print("s)");
+                lcd.display();
+                delay(100);
+            }
+        }
+        isButtonPressed = false;
+        updateFlag = true;
+    }
+
+    else if (isCleaningRequested) {
+        isCleaningRequested = false;
+
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Press cleanup button");
+        lcd.setCursor(0, 1);
+        lcd.print("again to confirm.");
+
+        unsigned long time = millis();
+        constexpr uint8_t timeout = 3; // seconds
+        while (millis() - time < timeout * 1000) {
+            if (isCleaningRequested){
+                cleanPump(pumps, 10, &lcd);
+                break;
+            }
+            else {
+                lcd.setCursor(15, 3);
+                lcd.print("(");
+                lcd.print(timeout - (millis() - time) / 1000);
+                lcd.print("s)");
+                lcd.display();
+                delay(100);
+            }
+        }
+        isCleaningRequested = false;
+        updateFlag = true;
+    }
 }
 
 
+
 /***********************************************************************************/
+
+/**************************************************
+ * @brief  Get the IP address of the WiFi module 
+ * @return The IP address, if available
+ **************************************************/
+String getIPAddress(){
+    if ( WIFI_MODULE.available() > 0 && WIFI_MODULE.read() == COMMS_IP_FLAG ){
+        char buf[20];
+        byte data[4];
+        String ip;
+        data[0] = WIFI_MODULE.read();
+        data[1] = WIFI_MODULE.read();
+        data[2] = WIFI_MODULE.read();
+        data[3] = WIFI_MODULE.read();
+
+        snprintf(buf, sizeof(buf), "%d.%d.%d.%d", data[0], data[1], data[2], data[3]);
+        ip = String(buf);
+        WIFI_MODULE.write(COMMS_IP_ACK); // We have received the IP address
+        return ip;
+    }
+    else
+        return "";
+}
 
 /**************************************************
  * @brief  Initialize the SD card
@@ -203,7 +313,9 @@ int initSDCard(){
     }
     Serial.println("done!");
 
-    Serial.print("Finding file...");
+    Serial.print("Looking for file: ");
+    Serial.print(FILENAME);
+    Serial.print("...");
     if (!SD.exists(FILENAME)){
         Serial.println("failed!");
         return 2;
@@ -215,83 +327,41 @@ int initSDCard(){
 
 
 /**************************************************************
- * @brief  Fetch drink recipes from SD card
- * @param  nRecipes Variable to hold number of recipes found
+ * @brief  Fetch drink recipes and pump contents from SD card
  *************************************************************/
-void fetchRecipes( int &nRecipes ){
+void fetchRecipes(){
     SDCard = SD.open(FILENAME);
     if (SDCard){
-        bool readingRecipes = false;
-        int ctr = 0;
+        /* Parse the JSON document into a practical class */
+        deserializeJson(jsonObject, SDCard);
 
-        while(SDCard.available()){
-            String buf = SDCard.readStringUntil('\r'); // Get one line of file
-            // Index 0 is '\r', so check 1 instead
-            if (buf.charAt(1) == '#'){
-                // Comment only, ignore this line
-                continue;
-            }
-            else if (buf.charAt(1) == '='){
-                /* Get the number of recipes */
-                nRecipes = buf.substring(2).toInt();
-                // Serial.println(nRecipes);
-                continue;
-            }
-            else {
-                if (!readingRecipes && buf.charAt(1) == '<'){ 
-                    /* From now on we are reading recipes */
-                    readingRecipes = true;
-                    Serial.println("Pump beverages loaded.");
-                }
-                if (!readingRecipes){
-                    /* We are reading pump id and contents */
-                    int id = buf.toInt(); // Cheap way of getting the id of pump
-                    if (id > 0 && id <= NUMBER_OF_PUMPS){
-                        String b = buf.substring(2);
-                        b.trim();
-                        pumps[id - 1].id = id;
-                        pumps[id - 1].drink = b.c_str();
-                    }
-                }
-                else {
-                    /* We are reading recipes */
-                    String  name;
-                    String  ing;
-                    int   amount;
-                    int   numIngs;
-
-                    if ( buf.charAt(1) == '<'){
-                        /* New recipe, get name and number of ingredients */
-                        buf     = SDCard.readStringUntil('\r');
-                        int idx = buf.indexOf(','); // Get index of delimiter
-                        name    = buf.substring(1, idx);
-                        numIngs = buf.substring(idx + 1).toInt();
-
-                        recipes[ctr].name            = name;
-                        recipes[ctr].num_ingredients = numIngs;
-
-                        for (int i = 0; i < min(numIngs, MAX_INGREDIENTS); i++){
-                            /* Get an ingredient */
-                            buf = SDCard.readStringUntil('\r');
-                            idx = buf.indexOf(',');
-                            recipes[ctr].ingredients[i].beverage = buf.substring(1, idx);
-                            recipes[ctr].ingredients[i].volume   = buf.substring(idx + 1).toInt();
-                        }
-
-                        ctr++;
-                    }
-
-                }
-            }
-        }
         SDCard.close();
         Serial.println("Closed file.");
+
+        /* Get the number of recipes */
+        numRecipes = jsonObject["numberOfRecipes"].as<int>();
+
+        /* Get the pump contents */
+        for (int i = 0; i < NUMBER_OF_PUMPS; i++){
+            pumps[i].id    = i + 1;
+            strncpy(pumps[i].drink, jsonObject["pumps"][i].as<char *>(), MAX_STRING_LENGTH);
+        }
+
+        /* Get the recipes */
+        for (int i = 0; i < numRecipes; i++){
+            strncpy(recipes[i].name, jsonObject["recipes"][i]["name"].as<char *>(), MAX_STRING_LENGTH);
+            recipes[i].num_ingredients = jsonObject["recipes"][i]["numberOfIngredients"].as<int>();
+            for (int j = 0; j < recipes[i].num_ingredients; j++){
+
+                strncpy(recipes[i].ingredients[j].beverage, jsonObject["recipes"][i]["ingredients"][j]["type"].as<char *>(), MAX_STRING_LENGTH);
+                recipes[i].ingredients[j].volume   = jsonObject["recipes"][i]["ingredients"][j]["quantity"].as<int>();
+            }
+        }
     }
     else {
         /* No recipes found */
         Serial.println("Could not open SD card.");
-        nRecipes = 0;
-        return;
+        numRecipes = 0;
     }
 
     /* Print for debugging purposes */
@@ -301,7 +371,7 @@ void fetchRecipes( int &nRecipes ){
     //     Serial.println(pumps[i].drink);
     // }
 
-    // for (int i = 0; i < nRecipes; i++)
+    // for (int i = 0; i < numRecipes; i++)
     // {
     //     Serial.print(recipes[i].name);
     //     Serial.print(" ");
@@ -314,50 +384,98 @@ void fetchRecipes( int &nRecipes ){
     //     }
     //     Serial.println();
     // }
+
+    return;
 }
 
-// TODO: Make this add all files to a list, for the user to pick the file for recipes.
-void listDirectory(File dir, int numTabs) {
-    static int index = 0;
-    while (true){
-        File entry = dir.openNextFile();
-        if (!entry){
-            // no more files
-            break;
-        }
 
-        for (uint8_t i = 0; i < numTabs; i++){
-            Serial.print('\t');
-        }
+/* Interrupt Service Routines */
 
-        Serial.print(entry.name());
+void buttonPressedISR(){
+    isButtonPressed = true;
 
-        if (entry.isDirectory()){
-            Serial.println("/");
-            listDirectory(entry, numTabs + 1);
-        }
-        else{
-            // files have sizes, directories do not
-            Serial.print("\t\t");
-            Serial.println(entry.size(), DEC);
-
-            // Add the file to the array of available files
-            snprintf(files[index], min(sizeof(entry.name()), MAX_FILENAME_LENGTH), "%s", entry.name());
-        }
-        entry.close();
-  }
+    return;
 }
 
-// TODO: List the available files and select the recipe file
-void selectRecipeFile(){
-    // char file[MAX_FILENAME_LENGTH];
+void incrementCounterISR(){
+    static unsigned long lastInterruptTime = 0;
+    unsigned long interruptTime = millis();
 
+    /* Simple debouncer */
+    if ( interruptTime - lastInterruptTime < 10 )
+        return;
 
-    // // TODO: use the rotary encoder to choose the file
+    rotaryEncoderCurrentState = digitalRead(ROT_ENC_DAT_PIN);
 
+    if ((rotaryEncoderLastState == LOW) && (rotaryEncoderCurrentState == HIGH)){
+        if (digitalRead(ROT_ENC_CLK_PIN) == HIGH){
+            rotaryEncoderCounter++;
+        }
+        else {
+            rotaryEncoderCounter--;
+        }
 
-    // // Copy the selected filename to the global variable
-    // memcpy(FILENAME, file, MAX_FILENAME_LENGTH);
+        rotaryEncoderCounter = rotaryEncoderCounter < 0          ?   0        : rotaryEncoderCounter;
+        rotaryEncoderCounter = rotaryEncoderCounter > numRecipes ? numRecipes : rotaryEncoderCounter;
+
+        updateFlag = true;
+    }
+    rotaryEncoderLastState = rotaryEncoderCurrentState;
+    lastInterruptTime = interruptTime;
+
+    return;
 }
 
-// TODO: Set up interrupt routines for the rotary encoder
+
+void orderNotifyISR(){
+    isWebOrderAvailable = true;
+
+    return;
+}
+
+void cleanNotifyISR(){
+    isCleaningRequested = true;
+
+    return;
+}
+
+
+
+/***************************************************************************************/
+
+void placeWebOrder(){
+    char drinkName[MAX_STRING_LENGTH];
+    bool isDataValid = false;
+    if (WIFI_MODULE.read() == COMMS_BEGIN_ORDER) {
+        WIFI_MODULE.readBytes(drinkName, MAX_STRING_LENGTH);
+        if (WIFI_MODULE.read() == COMMS_END_ORDER){
+            isDataValid = true;
+        }
+    }
+
+    if (isDataValid) {
+        Recipe* rec = getRecipeFromName(drinkName, MAX_STRING_LENGTH);
+        Serial.print("Online drink order found:");
+        Serial.println(rec->name);
+
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Web order coming up:");
+        lcd.setCursor(0, 2);
+        lcd.print(rec->name);
+        delay(2000);
+
+        mixDrink(rec, pumps, &lcd);
+    }
+
+    return;
+}
+
+// Get recipe drink object from drink name
+Recipe* getRecipeFromName( char* drinkName, int lenDrinkName ){
+    for (int i = 0; i < numRecipes; i++){
+        if (strncmp(drinkName, recipes[i].name, MAX_STRING_LENGTH) == 0){
+            return &recipes[i];
+        }
+    }
+}

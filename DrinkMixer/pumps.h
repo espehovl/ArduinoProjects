@@ -8,8 +8,9 @@
 #define PUMP_RATE (  30 ) // Pump rate, [mL/s] TODO: This need calibration when pumps arrive!
 
 uint8_t pumpToBin(Pump *p);
-void    performPump(Pump *p, unsigned long ms, LiquidCrystal_I2C* LCD);
-void    pourIngredient(Ingredient *ing, Pump *ps, LiquidCrystal_I2C* LCD);
-void    mixDrink(Recipe *rec, Pump *ps, LiquidCrystal_I2C* LCD);
+void    performPump(Pump *p, unsigned long ms, LiquidCrystal_I2C *LCD);
+void    pourIngredient(Ingredient *ing, Pump *ps, LiquidCrystal_I2C *LCD);
+void    mixDrink(Recipe *rec, Pump *ps, LiquidCrystal_I2C *LCD);
+void    cleanPump(Pump *ps, int duration, LiquidCrystal_I2C *LCD);
 
 #endif
