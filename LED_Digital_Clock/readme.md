@@ -6,3 +6,4 @@ This application requires the Adafruit NeoPixel library for driving the LED stri
 
 The clock currently only supports the 24 hour format, I *might* add 12 hour format later on. It should be a really quick fix, though.
 
+![LED clock](IMG_0734.JPG)
