@@ -1,10 +1,4 @@
 {
-    "wifiDetails": {
-        "ssid": "Hjalmar",
-        "ssidLength": 7,
-        "pass": "Konrad200",
-        "passLength": 9
-    },
     "numberOfPumps": 8,
     "pumps": [
         "Vodka",

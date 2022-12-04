@@ -4,13 +4,18 @@
 #include "Recipes.h"
 
 #include <LiquidCrystal_I2C.h>
+#include <Adafruit_NeoPixel.h>
+#include <HX711_ADC.h>
 
-#define PUMP_RATE (  30 ) // Pump rate, [mL/s] TODO: This need calibration when pumps arrive!
+// Rate when pump voltage is 12 V : 25
+// Rate when pump voltage is  7 V : 15
+#define PUMP_RATE (  15 ) // Pump rate, [mL/s]
 
-uint8_t pumpToBin(Pump *p);
-void    performPump(Pump *p, unsigned long ms, LiquidCrystal_I2C *LCD);
-void    pourIngredient(Ingredient *ing, Pump *ps, LiquidCrystal_I2C *LCD);
-void    mixDrink(Recipe *rec, Pump *ps, LiquidCrystal_I2C *LCD);
-void    cleanPump(Pump *ps, int duration, LiquidCrystal_I2C *LCD);
+uint8_t pumpToBin       ( Pump *p );
+void    performPump     ( Pump *p,           unsigned int volume,   LiquidCrystal_I2C *LCD, Adafruit_NeoPixel *LED, HX711_ADC *loadCell );
+void    pourIngredient  ( Ingredient *ing,   Pump *ps,              LiquidCrystal_I2C *LCD, Adafruit_NeoPixel *LED, HX711_ADC *loadCell );
+void    mixDrink        ( Recipe *rec,       Pump *ps,              LiquidCrystal_I2C *LCD, Adafruit_NeoPixel *LED, HX711_ADC *loadCell );
+void    cleanPump       ( Pump *p, unsigned int pumpNo, float duration, Adafruit_NeoPixel *LED);
+void    runPump         ( Pump *p,           unsigned long ms );
 
 #endif
